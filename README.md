@@ -11,7 +11,7 @@ pip install geospace -U
 To Do
 -----
 
--   Add time series extration using Google Earth Engine.
+-   Time series extration using Google Earth Engine.
 
 Pull requests are encouraged!
 
