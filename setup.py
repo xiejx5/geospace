@@ -14,7 +14,7 @@ from setuptools import find_packages, setup, Command
 # Package meta-data.
 NAME = 'geospace'
 DESCRIPTION = 'A python library for geospatial processing based GDAL and Google Earth Engine'
-URL = 'https://github.com/xiejx5/GeoSpace'
+URL = 'https://github.com/xiejx5/geospace'
 EMAIL = 'xiejx5@gmail.com'
 AUTHOR = 'Cody James'
 REQUIRES_PYTHON = '>=3.6.0'
