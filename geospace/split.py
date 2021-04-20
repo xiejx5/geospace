@@ -6,11 +6,13 @@ from osgeo import gdal, ogr, osr
 __all__ = ['split_shp']
 
 
-def split_shp(outDir, shp_paths):
+def split_shp(outDir, shp_paths, name_index=1):
     if not os.path.exists(outDir):
         os.mkdir(outDir)
     gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
     gdal.SetConfigOption("SHAPE_ENCODING", locale.getpreferredencoding())
+    if not isinstance(shp_paths, list):
+        shp_paths = [shp_paths]
     for shp in shp_paths:
         # Filename of input OGR file
         driver = ogr.GetDriverByName("ESRI Shapefile")
@@ -27,7 +29,8 @@ def split_shp(outDir, shp_paths):
 
         # create the CoordinateTransformation
         if int(gdal.__version__[0]) >= 3:
-            outSpatialRef.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+            outSpatialRef.SetAxisMappingStrategy(
+                osr.OAMS_TRADITIONAL_GIS_ORDER)
         coordTrans = osr.CoordinateTransformation(inSpatialRef, outSpatialRef)
 
         # loop through the input features
@@ -35,7 +38,7 @@ def split_shp(outDir, shp_paths):
         inFeature = inLayer.GetNextFeature()
         while inFeature:
             # create the output layer
-            outFile = outDir + '/' + inFeature.GetField(0) + '.shp'
+            outFile = outDir + '/' + inFeature.GetField(name_index) + '.shp'
             if os.path.exists(outFile):
                 driver.DeleteDataSource(outFile)
             outDataSet = driver.CreateDataSource(outFile)
