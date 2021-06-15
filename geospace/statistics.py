@@ -1,19 +1,18 @@
 import os
+import shutil
 import numpy as np
+import pandas as pd
+from functools import partial
 from osgeo import gdal, ogr, osr
-from ._const import CREATION, CONFIG
-from .transform import geo2imagexy, rep_file
-from .block_write import block_write
-from .create_tif import zeros_tif
-from .projection import proj_shapefile
-
-
-__all__ = ['extract']
+from geospace._const import CREATION, CONFIG
+from multiprocessing import Pool, cpu_count
+from geospace.utils import geo2imagexy, rep_file, zeros_tif, block_write
+from geospace.shape import proj_shapefile, shp_filter
 
 
 # Now Read the large raster block by block, expecting to see no increase of
 # memory as we loop through the blocks.
-def map_burn(in_datas):
+def _map_burn(in_datas):
     in_datas[1].set_fill_value(0)
     burn_data = in_datas[1].filled()
     rect_data = np.ma.masked_where(np.logical_not(
@@ -97,13 +96,12 @@ def clip(ds, outLayer, no_data=None, rect_file=None,
         poly_ds = None
 
         option = gdal.WarpOptions(multithread=True, options=CONFIG,
-                                  creationOptions=CREATION,
+                                  creationOptions=CREATION, dstNodata=0,
                                   xRes=rect.GetGeoTransform()[1],
                                   yRes=rect.GetGeoTransform()[5],
                                   resampleAlg=gdal.GRA_Average,
                                   outputType=gdal.GDT_Float32)
         burn_ds = gdal.Warp(burn_file, poly_file, options=option)
-        burn_ds.GetRasterBand(1).SetNoDataValue(0)
 
         # return bool matrix in polygon
         burn_band = burn_ds.GetRasterBand(1)
@@ -118,7 +116,7 @@ def clip(ds, outLayer, no_data=None, rect_file=None,
         rect_band = rect.GetRasterBand(c)
         if rect_band.GetNoDataValue() is None:
             rect_band.SetNoDataValue(no_data)
-        block_write(rect, [rect_band, burn_band], rect_band, map_burn)
+        block_write(rect, [rect_band, burn_band], rect_band, _map_burn)
 
     burn_ds = None
     poly_ds = None
@@ -126,7 +124,7 @@ def clip(ds, outLayer, no_data=None, rect_file=None,
     return rect, burn_data
 
 
-def extract_stat(ras, shp, PROJ=None, no_data=None, **kwargs):
+def _extract_stat(ras, shp, PROJ=None, no_data=None, **kwargs):
     if isinstance(ras, str):
         ds = gdal.Open(ras)
     else:
@@ -223,7 +221,7 @@ def extract_stat(ras, shp, PROJ=None, no_data=None, **kwargs):
 
 def extract(ras, shp, PROJ=None, no_data=None, stat=False, **kwargs):
     if stat:
-        return extract_stat(ras, shp, PROJ=PROJ, no_data=no_data, **kwargs)
+        return _extract_stat(ras, shp, PROJ=PROJ, no_data=no_data, **kwargs)
 
     if isinstance(ras, str):
         ds = gdal.Open(ras)
@@ -257,3 +255,81 @@ def extract(ras, shp, PROJ=None, no_data=None, stat=False, **kwargs):
     rect, _ = clip(ds, outLayer, no_data=no_data, **kwargs)
 
     return rect.GetDescription()
+
+
+def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
+    driver = ogr.GetDriverByName('ESRI Shapefile')
+
+    # get layer of in_shp
+    if isinstance(in_shp, str):
+        ds = driver.Open(in_shp)
+    else:
+        ds = in_shp
+
+    in_layer = ds.GetLayer()
+    srs = ds.GetLayer().GetSpatialRef()
+
+    # project clip_shp
+    if save_cache:
+        proj_shp = rep_file('cache', os.path.splitext(
+            os.path.basename(clip_shp))[0] + '_proj.shp')
+    else:
+        proj_shp = '/vsimem/_proj.shp'
+    proj_shapefile(clip_shp, proj_shp, out_proj=srs)
+    clip_ds = driver.Open(proj_shp)
+    clip_layer = clip_ds.GetLayer()
+
+    # export out_shp
+    if out_shp is None:
+        if save_cache:
+            out_shp = rep_file('cache', os.path.splitext(
+                os.path.basename(clip_shp))[0] + '_out.shp')
+        else:
+            out_shp = '/vsimem/_out.shp'
+
+    out_ds = driver.CreateDataSource(out_shp)
+    out_layer = out_ds.CreateLayer(out_shp, srs=srs)
+
+    in_layer.Clip(clip_layer, out_layer)
+
+    area = []
+    logK = []
+    # newField = ogr.FieldDefn('Area', ogr.OFTReal)
+    # out_layer.CreateField(newField)
+    c = out_layer.GetFeatureCount()
+    for i in range(c):
+        f = out_layer.GetFeature(i)
+        area.append(f.GetGeometryRef().GetArea())
+        logK.append(f.GetField(field))
+        # f.SetField('Area', f.GetGeometryRef().GetArea())
+        # out_layer.SetFeature(f)
+    area = np.array(area)
+    logK = np.array(logK)
+    mean_logK = np.average(logK, weights=area)
+    # mean_logK = np.log10(np.average(np.power(10, logK / 100), weights=area))
+    out_layer = None
+    out_ds = None
+    return mean_logK
+
+
+def basin_average_worker(shp, rasters, basin_id, **kwargs):
+    filter_sql = f"STAID = '{basin_id}'"
+    filter_shp = shp_filter(shp, filter_sql)
+    one_out = np.full(len(rasters), np.nan)
+    for i, ras in enumerate(rasters):
+        one_out[i] = np.squeeze(extract(ras, filter_shp, enlarge=10,
+                                        ext=basin_id, stat=True, **kwargs))
+    return one_out
+
+
+def basin_average(shp, rasters, basins_id, **kwargs):
+    if isinstance(rasters, str):
+        rasters = [rasters]
+    with Pool(cpu_count() * 3 // 4) as p:
+        output = p.map(partial(basin_average_worker, shp, rasters, **kwargs), basins_id)
+    if kwargs.pop('save_cache', False):
+        if os.path.exists('cache'):
+            shutil.rmtree('cache')
+
+    names = [os.path.splitext(os.path.basename(i))[0] for i in rasters]
+    return pd.DataFrame(output, columns=names)

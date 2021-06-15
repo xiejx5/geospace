@@ -1,12 +1,9 @@
 import numpy as np
 from osgeo import gdal, ogr, osr
-from .transform import geo2imagexy, ds_name
+from geospace.utils import geo2imagexy, ds_name
 
 
-__all__ = ['bound_raster', 'bound_layers']
-
-
-def proj_bound(ds, bound, bound_srs):
+def _proj_bound(ds, bound, bound_srs):
     x_min, y_min, x_max, y_max = bound
     ring = ogr.Geometry(ogr.wkbLinearRing)
     ring.AddPoint(min(x_min, x_max), min(y_min, y_max))
@@ -69,7 +66,7 @@ def proj_bound(ds, bound, bound_srs):
 def bound_raster(ds, bound, bound_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
     ds, ras = ds_name(ds)
     t = ds.GetGeoTransform()
-    x_min, y_min, x_max, y_max = proj_bound(ds, bound, bound_srs)
+    x_min, y_min, x_max, y_max = _proj_bound(ds, bound, bound_srs)
     ulX, ulY = geo2imagexy(ds, x_min, y_min)
     lrX, lrY = geo2imagexy(ds, x_max, y_max)
     clip_range = [min(ulX, lrX), min(ulY, lrY),
@@ -104,3 +101,22 @@ def bound_layers(layers):
     bound_srs = layers[0].GetSpatialRef()
 
     return bound, bound_srs.ExportToProj4()
+
+
+def grid_bound(ds, regions):
+    """return gridded bound whose resolution exactly matches that of ds
+
+    Args:
+        ds (gdal.dataset): dataset or path
+        regions (list or str): regions of interest
+
+    Returns:
+        bound: spatial range of the regions in the ds
+        crs_transform: like bound but used in GEE
+    """
+    ds = ds_name(ds)[0]
+    t = ds.GetGeoTransform()
+    bound, bound_srs = bound_layers(regions)
+    bound, bound_srs = bound_raster(ds, bound, bound_srs)
+    crs_transform = [t[1], 0, bound[0], 0, t[5], bound[-1]]
+    return bound, crs_transform

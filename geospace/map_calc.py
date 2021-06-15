@@ -1,20 +1,18 @@
 import os
 import numpy as np
-from .gdal_calc import Calc
-from ._const import CREATION
-from .mosaic import mosaic
-from .transform import ds_name, context_file
+from geospace.gdal_calc import Calc
+from geospace._const import CREATION
+from geospace.raster import mosaic
+from geospace.utils import ds_name, context_file
 from multiprocessing import Pool, cpu_count
 from collections.abc import Iterable
-
-__all__ = ['map_calc']
 
 
 def band_map(i, ras_multi, band_idx_multi, calc_arg, out_file):
     tem_file = os.path.join(os.path.dirname(out_file),
                             '_temp_' + os.path.splitext(
-                            os.path.basename(out_file))[0]
-                            + '_' + str(i) + '.tif')
+                            os.path.basename(out_file))[0] +
+                            '_' + str(i) + '.tif')
 
     if os.path.exists(tem_file):
         return tem_file
