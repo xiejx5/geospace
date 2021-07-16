@@ -6,6 +6,10 @@ from geospace.shape import *
 from geospace.shp_to_ras import *
 from geospace.statistics import *
 from geospace.utils import *
-from geospace.gee_export import *
 from geospace.gdal_calc import Calc
 from geospace.map_calc import map_calc
+
+try:
+    from geospace.gee_export import *
+except Exception:
+    pass
