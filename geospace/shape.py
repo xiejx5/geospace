@@ -3,7 +3,7 @@ import locale
 from osgeo import gdal, ogr, osr
 
 
-def shp_buffer(in_shp, out_shp, buffdist, in_proj=None):
+def shp_buffer(in_shp, out_shp, buffdist, in_srs=None):
     # Filename of input OGR file
     driver = ogr.GetDriverByName("ESRI Shapefile")
     if isinstance(in_shp, ogr.Layer):
@@ -15,14 +15,14 @@ def shp_buffer(in_shp, out_shp, buffdist, in_proj=None):
     # input SpatialReference
     inSpatialRef = inLayer.GetSpatialRef()
     if not inSpatialRef:
-        if in_proj is not None:
-            if isinstance(in_proj, osr.SpatialReference):
-                inSpatialRef = in_proj
+        if in_srs is not None:
+            if isinstance(in_srs, osr.SpatialReference):
+                inSpatialRef = in_srs
             else:
                 inSpatialRef = osr.SpatialReference()
-                inSpatialRef.ImportFromProj4(in_proj)
+                inSpatialRef.ImportFromProj4(in_srs)
         else:
-            raise(ValueError("in_proj must be set"))
+            raise(ValueError("in_srs must be set"))
 
     # create the output layer
     if 'vsimem' not in os.path.dirname(out_shp):
@@ -69,8 +69,8 @@ def shp_buffer(in_shp, out_shp, buffdist, in_proj=None):
     return out_shp
 
 
-def proj_shapefile(in_shp, out_shp, in_proj=None,
-                   out_proj="+proj=longlat +datum=WGS84 +ellps=WGS84"):
+def proj_shapefile(in_shp, out_shp, in_srs=None,
+                   out_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
     gdal.SetConfigOption("SHAPE_ENCODING", 'utf-8')
 
     # Filename of input OGR file
@@ -84,25 +84,25 @@ def proj_shapefile(in_shp, out_shp, in_proj=None,
     # input SpatialReference
     inSpatialRef = inLayer.GetSpatialRef()
     if not inSpatialRef:
-        if in_proj is not None:
-            if isinstance(in_proj, osr.SpatialReference):
-                inSpatialRef = in_proj
+        if in_srs is not None:
+            if isinstance(in_srs, osr.SpatialReference):
+                inSpatialRef = in_srs
             else:
                 inSpatialRef = osr.SpatialReference()
-                inSpatialRef.ImportFromProj4(in_proj)
+                inSpatialRef.ImportFromProj4(in_srs)
         else:
-            raise(ValueError("in_proj must be set"))
+            raise(ValueError("in_srs must be set"))
 
     # output SpatialReference
-    if isinstance(out_proj, osr.SpatialReference):
-        outSpatialRef = out_proj
-    elif os.path.isfile(out_proj):
-        ds = driver.Open(out_proj)
+    if isinstance(out_srs, osr.SpatialReference):
+        outSpatialRef = out_srs
+    elif os.path.isfile(out_srs):
+        ds = driver.Open(out_srs)
         outSpatialRef = ds.GetLayer().GetSpatialRef()
         ds = None
     else:
         outSpatialRef = osr.SpatialReference()
-        outSpatialRef.ImportFromProj4(out_proj)
+        outSpatialRef.ImportFromProj4(out_srs)
 
     # create the CoordinateTransformation
     if int(gdal.__version__[0]) >= 3:

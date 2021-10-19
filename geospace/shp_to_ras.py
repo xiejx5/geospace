@@ -60,10 +60,10 @@ def download_tiles(shp, tile_pixel):
     target_ds = gdal.GetDriverByName('GTiff').Create(
         '/vsimem/_tile.tif', x_res, y_res, 1, gdal.GDT_Byte)
     target_ds.SetGeoTransform((-180, tile_pixel, 0, 90, 0, -tile_pixel))
-    target_prj = osr.SpatialReference()
-    target_prj.ImportFromProj4(
+    target_srs = osr.SpatialReference()
+    target_srs.ImportFromProj4(
         '+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
-    target_ds.SetProjection(target_prj.ExportToWkt())
+    target_ds.SetProjection(target_srs.ExportToWkt())
     band = target_ds.GetRasterBand(1)
     band.SetNoDataValue(0)
 
@@ -94,8 +94,8 @@ def masked_outside(shp, ds):
     # create the output layer
     driver = ogr.GetDriverByName("ESRI Shapefile")
     out_shp = '/vsimem/outline_wgs84.shp'
-    out_proj = osr.SpatialReference(wkt=ds.GetProjection())
-    proj_shapefile(shp, out_shp, out_proj=out_proj)
+    out_srs = osr.SpatialReference(wkt=ds.GetProjection())
+    proj_shapefile(shp, out_shp, out_srs=out_srs)
     outDataSet = driver.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 

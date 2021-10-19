@@ -15,12 +15,11 @@ def polygonize(ds, shp_path):
                     gdal.GDT_CFloat32: ogr.OFTReal,
                     gdal.GDT_CFloat64: ogr.OFTReal}
 
-    prj = ds.GetProjection()
     srcband = ds.GetRasterBand(1)
     dst_layername = "Shape"
     drv = ogr.GetDriverByName("ESRI Shapefile")
     dst_ds = drv.CreateDataSource(shp_path)
-    srs = osr.SpatialReference(wkt=prj)
+    srs = osr.SpatialReference(wkt=ds.GetProjection())
 
     dst_layer = dst_ds.CreateLayer(dst_layername, srs=srs)
     raster_field = ogr.FieldDefn('id', type_mapping[srcband.DataType])

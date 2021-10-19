@@ -3,7 +3,7 @@ from osgeo import gdal, ogr, osr
 from geospace.utils import geo2imagexy, ds_name
 
 
-def _proj_bound(ds, bound, bound_srs):
+def _prj_bound(ds, bound, bound_srs):
     x_min, y_min, x_max, y_max = bound
     ring = ogr.Geometry(ogr.wkbLinearRing)
     ring.AddPoint(min(x_min, x_max), min(y_min, y_max))
@@ -66,7 +66,7 @@ def _proj_bound(ds, bound, bound_srs):
 def bound_raster(ds, bound, bound_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
     ds, ras = ds_name(ds)
     t = ds.GetGeoTransform()
-    x_min, y_min, x_max, y_max = _proj_bound(ds, bound, bound_srs)
+    x_min, y_min, x_max, y_max = _prj_bound(ds, bound, bound_srs)
     ulX, ulY = geo2imagexy(ds, x_min, y_min)
     lrX, lrY = geo2imagexy(ds, x_max, y_max)
     clip_range = [min(ulX, lrX), min(ulY, lrY),

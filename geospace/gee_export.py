@@ -6,7 +6,7 @@ import pandas as pd
 
 
 # gee initialization
-def gee_inital():
+def gee_initial():
     try:
         ee.Initialize()
     except Exception:

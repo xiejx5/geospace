@@ -95,9 +95,8 @@ def grib_to_tif(ds, out_path=None, **kwargs):
     if os.path.exists(out_file):
         return out_file
 
-    proj = "+proj=longlat +datum=WGS84 +ellps=WGS84"
     SpatialRef = osr.SpatialReference()
-    SpatialRef.ImportFromProj4(proj)
+    SpatialRef.ImportFromProj4("+proj=longlat +datum=WGS84 +ellps=WGS84")
     srs = kwargs.pop('dstSRS', SpatialRef)
     option = gdal.WarpOptions(multithread=True, options=CONFIG,
                               creationOptions=CREATION, **kwargs,

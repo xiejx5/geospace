@@ -1,12 +1,9 @@
 import os
 import json
 import numpy as np
-from osgeo import gdal, osr
+from osgeo import gdal, osr, ogr
 from collections.abc import Iterable
 from geospace._const import CREATION
-
-
-__all__ = ['block_write', 'context_file', 'ds_name']
 
 
 def block_write(in_ds, in_bands, out_band, map_fun,
@@ -105,6 +102,42 @@ def imagexy2geo(dataset, row, col):
     px = trans[0] + (col + 0.5) * trans[1] + (row + 0.5) * trans[2]
     py = trans[3] + (col + 0.5) * trans[4] + (row + 0.5) * trans[5]
     return px, py
+
+
+def meshgrid(ds, geo_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
+    ds, _ = ds_name(ds)
+    col, row = np.meshgrid(np.arange(ds.RasterXSize), np.arange(ds.RasterYSize))
+    x, y = imagexy2geo(ds, row, col)
+
+    if 'PROJCS' not in ds.GetProjection():
+        return x, y
+
+    # projection spatial reference
+    prj_srs = osr.SpatialReference()
+    prj_srs.ImportFromWkt(ds.GetProjection())
+
+    # output SpatialReference
+    driver = ogr.GetDriverByName("ESRI Shapefile")
+    if isinstance(geo_srs, osr.SpatialReference):
+        outSpatialRef = geo_srs
+    elif os.path.isfile(geo_srs):
+        ds_srs = driver.Open(geo_srs)
+        outSpatialRef = ds_srs.GetLayer().GetSpatialRef()
+        ds_srs = None
+    else:
+        outSpatialRef = osr.SpatialReference()
+        outSpatialRef.ImportFromProj4(geo_srs)
+    geo_srs = outSpatialRef
+
+    # create the CoordinateTransformation
+    if int(gdal.__version__[0]) >= 3:
+        geo_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        prj_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    trans = osr.CoordinateTransformation(prj_srs, geo_srs)
+    lonlat = np.array(trans.TransformPoints(np.concatenate([x.reshape(-1, 1), y.reshape(-1, 1)], axis=1)))
+    lon = lonlat[:, 0].reshape(x.shape)
+    lat = lonlat[:, 1].reshape(y.shape)
+    return lon, lat
 
 
 def context_file(ras, out_path):
