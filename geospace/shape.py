@@ -61,11 +61,6 @@ def shp_buffer(in_shp, out_shp, buffdist, in_srs=None):
         outFeature = None
         inFeature = inLayer.GetNextFeature()
 
-    inLayer = None
-    outLayer = None
-    outDataSet = None
-    source_ds = None
-
     return out_shp
 
 
@@ -148,11 +143,6 @@ def project_shape(in_shp, out_shp, in_srs=None,
         outFeature = None
         inFeature = inLayer.GetNextFeature()
 
-    source_ds = None
-    inLayer = None
-    outLayer = None
-    outDataSet = None
-
     return out_shp
 
 
@@ -214,16 +204,8 @@ def split_shp(outDir, shp_paths, name_index=1):
                     i).GetNameRef(), inFeature.GetField(i))
             # add the feature to the shapefile
             outLayer.CreateFeature(outFeature)
-            # dereference the features and get the next input feature
-            outFeature = None
-            outDataSet = None
-            outLayer = None
+            # get the next input feature
             inFeature = inLayer.GetNextFeature()
-
-        outLayer = None
-        inLayer = None
-        source_ds = None
-        outDataSet = None
 
 
 def shp_filter(shps, filter_sql, filter_shp=None):
@@ -235,5 +217,4 @@ def shp_filter(shps, filter_sql, filter_shp=None):
         filter_shp = '/vsimem/filter.shp'
     filter = driver.CreateDataSource(filter_shp)
     filter.CopyLayer(layer, 'filter')
-    filter = None
     return filter_shp

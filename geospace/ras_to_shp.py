@@ -1,7 +1,10 @@
+import os
 from osgeo import gdal, ogr, osr
 
 
 def polygonize(ds, shp_path):
+    if os.path.exists(shp_path):
+        return
     # mapping between gdal type and ogr field type
     type_mapping = {gdal.GDT_Byte: ogr.OFTInteger,
                     gdal.GDT_UInt16: ogr.OFTInteger,
@@ -25,4 +28,4 @@ def polygonize(ds, shp_path):
     raster_field = ogr.FieldDefn('id', type_mapping[srcband.DataType])
     dst_layer.CreateField(raster_field)
     gdal.Polygonize(srcband, srcband, dst_layer, 0, [], callback=None)
-    del ds, srcband, dst_ds, dst_layer
+    return shp_path

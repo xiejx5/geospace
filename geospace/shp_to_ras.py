@@ -6,7 +6,8 @@ from geospace.shape import project_shape
 from geospace._const import CREATION
 
 
-def rasterize(shp, attr, out_path, ds_eg, tem_path, **kwargs):
+def rasterize(shp, attr, out_path, ds_eg, tem_path,
+              rasterize_option=['ALL_TOUCHED=TRUE'], **kwargs):
     # create out put name
     out_file = os.path.join(out_path, os.path.splitext(
         os.path.basename(shp))[0] + '.tif')
@@ -40,13 +41,10 @@ def rasterize(shp, attr, out_path, ds_eg, tem_path, **kwargs):
     # create and use RasterizeLayer
     band.Fill(band.GetNoDataValue())
     gdal.RasterizeLayer(ds_tem, [1], layer,
-                        options=["ATTRIBUTE=%s" % attr, 'ALL_TOUCHED=TRUE'])
+                        options=["ATTRIBUTE=%s" % attr] + rasterize_option)
     gdal.Warp(out_file, ds_tem, options=option)
 
-    band = None
-    ds_tem = None
-    shp_factor = None
-    layer = None
+    return out_file
 
 
 def download_tiles(shp, tile_pixel):

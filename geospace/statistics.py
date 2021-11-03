@@ -122,9 +122,6 @@ def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
             rect_band.SetNoDataValue(no_data)
         block_write(rect, [rect_band, burn_band], rect_band, _map_burn)
 
-    burn_ds = None
-    poly_ds = None
-
     return rect, burn_data
 
 
@@ -214,12 +211,6 @@ def _extract_stat(ras, shp, PROJ=None, no_data=None, **kwargs):
             except ZeroDivisionError:
                 pass
 
-        outFeature = None
-        outDataSet = None
-        outLayer = None
-        inFeature = None
-
-    ds = None
     return stat
 
 

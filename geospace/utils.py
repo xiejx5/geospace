@@ -200,7 +200,4 @@ def zeros_tif(out_file, x_size, y_size, n_band,
         inSpatialRef.ImportFromProj4(srs)
     ds.SetProjection(inSpatialRef.ExportToWkt())
 
-    band = None
-    ds = None
-
     return out_file

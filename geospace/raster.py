@@ -71,18 +71,9 @@ def mosaic(ras_paths, out_path, **kwargs):
 
     separate = kwargs.pop('separate', False)
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
-    gdal.BuildVRT('/vsimem/Mosaic.vrt', ras_paths, separate=separate)
-    ds = gdal.Open('/vsimem/Mosaic.vrt')
-
-    # set no data
-    if ds.GetRasterBand(1).GetNoDataValue() is not None:
-        no_data = ds.GetRasterBand(1).GetNoDataValue()
-    else:
-        no_data = kwargs.pop('srcNodata', None)
+    ds = gdal.BuildVRT('/vsimem/Mosaic.vrt', ras_paths, separate=separate)
 
     option = gdal.WarpOptions(multithread=True,
-                              dstNodata=no_data,
-                              srcNodata=no_data,
                               creationOptions=CREATION,
                               resampleAlg=resample_alg,
                               **kwargs)
@@ -136,6 +127,7 @@ def project_raster(ds, out_path, **kwargs):
                               dstSRS=outSpatialRef,
                               multithread=True, **kwargs)
     gdal.Warp(out_file, ds, options=option)
+
     return out_file
 
 
@@ -213,8 +205,5 @@ def tif_copy_assign(out_file, ds_eg, array, srs=None, no_data=None):
             inSpatialRef = osr.SpatialReference()
             inSpatialRef.ImportFromProj4(srs)
     ds.SetProjection(inSpatialRef.ExportToWkt())
-
-    band = None
-    ds = None
 
     return out_file
