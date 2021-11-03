@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from osgeo import gdal, osr
+from osgeo import gdal, osr, ogr
 from geospace._const import CREATION, CONFIG, TYPE_MAP
 from geospace.utils import block_write, rep_file, ds_name, context_file
 
@@ -72,11 +72,67 @@ def mosaic(ras_paths, out_path, **kwargs):
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
     gdal.BuildVRT('/vsimem/Mosaic.vrt', ras_paths, separate=separate)
     ds = gdal.Open('/vsimem/Mosaic.vrt')
+
+    # set no data
+    if ds.GetRasterBand(1).GetNoDataValue() is not None:
+        no_data = ds.GetRasterBand(1).GetNoDataValue()
+    else:
+        no_data = kwargs.pop('srcNodata', None)
+
     option = gdal.WarpOptions(multithread=True, options=CONFIG,
+                              dstNodata=no_data, srcNodata=no_data,
                               creationOptions=CREATION, **kwargs,
                               resampleAlg=resample_alg)
     gdal.Warp(out_file, ds, options=option)
 
+    return out_file
+
+
+def project_raster(ds, out_path, **kwargs):
+    ds, ras = ds_name(ds)
+    out_file = context_file(ras, out_path)
+
+    if os.path.exists(out_file):
+        return out_file
+
+    # input SpatialReference
+    in_srs = kwargs.pop('srcSRS', None)
+    inSpatialRef = ds.GetSpatialRef()
+    if not inSpatialRef:
+        if in_srs is not None:
+            if isinstance(in_srs, osr.SpatialReference):
+                inSpatialRef = in_srs
+            else:
+                inSpatialRef = osr.SpatialReference()
+                inSpatialRef.ImportFromProj4(in_srs)
+        else:
+            raise(ValueError("srcSRS must be set"))
+
+    # output SpatialReference
+    out_srs = kwargs.pop('dstSRS', "+proj=longlat +datum=WGS84 +ellps=WGS84")
+    if isinstance(out_srs, osr.SpatialReference):
+        outSpatialRef = out_srs
+    elif os.path.isfile(out_srs):
+        ext = os.path.splitext(os.path.basename(out_srs))[1]
+        if ext == '.tif':
+            ds_temp = gdal.Open(out_srs)
+            outSpatialRef = ds_temp.GetSpatialRef()
+            ds_temp = None
+        else:
+            ds_temp = ogr.Open(out_srs)
+            outSpatialRef = ds_temp.GetLayer().GetSpatialRef()
+            ds_temp = None
+    else:
+        outSpatialRef = osr.SpatialReference()
+        outSpatialRef.ImportFromProj4(out_srs)
+
+    resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
+    option = gdal.WarpOptions(creationOptions=CREATION,
+                              resampleAlg=resample_alg,
+                              srcSRS=inSpatialRef,
+                              dstSRS=outSpatialRef,
+                              multithread=True, **kwargs)
+    gdal.Warp(out_file, ds, options=option)
     return out_file
 
 
