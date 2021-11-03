@@ -24,8 +24,8 @@ def _map_burn(in_datas):
     return rect_data.filled()
 
 
-def clip(ds, outLayer, no_data=None, rect_file=None,
-         enlarge=10, save_cache=False, ext=None, new=True):
+def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
+         save_cache=False, ext=None, new=True, rasterize_option=['ALL_TOUCHED=TRUE']):
 
     # Open the data source and read in the extent
     t = ds.GetGeoTransform()
@@ -96,7 +96,7 @@ def clip(ds, outLayer, no_data=None, rect_file=None,
 
         # Rasterize
         gdal.RasterizeLayer(poly_ds, [1], outLayer, burn_values=[
-                            1], options=['ALL_TOUCHED=TRUE'])
+                            1], options=rasterize_option)
         poly_ds = None
 
         option = gdal.WarpOptions(multithread=True, options=CONFIG,
