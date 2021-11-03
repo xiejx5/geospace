@@ -97,9 +97,9 @@ def project_shape(in_shp, out_shp, in_srs=None,
     if isinstance(out_srs, osr.SpatialReference):
         outSpatialRef = out_srs
     elif os.path.isfile(out_srs):
-        ds = driver.Open(out_srs)
-        outSpatialRef = ds.GetLayer().GetSpatialRef()
-        ds = None
+        ds_temp = driver.Open(out_srs)
+        outSpatialRef = ds_temp.GetLayer().GetSpatialRef()
+        ds_temp = None
     else:
         outSpatialRef = osr.SpatialReference()
         outSpatialRef.ImportFromProj4(out_srs)
