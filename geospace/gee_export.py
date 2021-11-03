@@ -98,7 +98,7 @@ def gee_export_tif(image, filename, crs=None, crs_transform=None, scale=None, re
     #     }).start()
 
 
-def gee_export_csv(fc, image, fields=['ORDER', '.*mean'], scale_enlarge=1):
+def gee_export_csv(fc, image, scale_enlarge=1, fields=['ORDER', '.*mean'], return_url=False):
     """export a csv containing the basin average value
 
     Args:
@@ -120,6 +120,7 @@ def gee_export_csv(fc, image, fields=['ORDER', '.*mean'], scale_enlarge=1):
         'scale': scale,
     })
     url = means.select(fields, retainGeometry=False).getDownloadURL(filetype='csv')
-    df = pd.read_csv(url)
-
-    return df
+    if return_url:
+        return url
+    else:
+        return pd.read_csv(url)
