@@ -5,8 +5,8 @@ from functools import partial
 from osgeo import gdal, ogr, osr
 from geospace._const import CREATION, CONFIG
 from multiprocessing import Pool, cpu_count
+from geospace.shape import project_shape, shp_filter
 from geospace.utils import geo2imagexy, rep_file, zeros_tif, block_write
-from geospace.shape import proj_shapefile, shp_filter
 
 try:
     import pandas as pd
@@ -245,7 +245,7 @@ def extract(ras, shp, PROJ=None, no_data=None, stat=False, **kwargs):
         raise(ValueError("PROJ must be initialed"))
 
     out_shp = '/vsimem/outline.shp'
-    proj_shapefile(shp, out_shp, out_srs=outSpatialRef)
+    project_shape(shp, out_shp, out_srs=outSpatialRef)
     outDataSet = ogr.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 
@@ -279,7 +279,7 @@ def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
             os.path.basename(clip_shp))[0] + '_proj.shp')
     else:
         proj_shp = '/vsimem/_proj.shp'
-    proj_shapefile(clip_shp, proj_shp, out_srs=srs)
+    project_shape(clip_shp, proj_shp, out_srs=srs)
     clip_ds = driver.Open(proj_shp)
     clip_layer = clip_ds.GetLayer()
 

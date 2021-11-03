@@ -2,7 +2,7 @@ import os
 import numpy as np
 from osgeo import gdal, ogr, osr
 from geospace.utils import imagexy2geo, ds_name
-from geospace.shape import proj_shapefile
+from geospace.shape import project_shape
 from geospace._const import CREATION, CONFIG
 
 
@@ -50,7 +50,7 @@ def download_tiles(shp, tile_pixel):
     # create the output layer
     driver = ogr.GetDriverByName("ESRI Shapefile")
     out_shp = '/vsimem/outline_wgs84.shp'
-    proj_shapefile(shp, out_shp)
+    project_shape(shp, out_shp)
     outDataSet = driver.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 
@@ -95,7 +95,7 @@ def masked_outside(shp, ds):
     driver = ogr.GetDriverByName("ESRI Shapefile")
     out_shp = '/vsimem/outline_wgs84.shp'
     out_srs = osr.SpatialReference(wkt=ds.GetProjection())
-    proj_shapefile(shp, out_shp, out_srs=out_srs)
+    project_shape(shp, out_shp, out_srs=out_srs)
     outDataSet = driver.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 
