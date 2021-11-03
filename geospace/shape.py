@@ -69,8 +69,8 @@ def shp_buffer(in_shp, out_shp, buffdist, in_srs=None):
     return out_shp
 
 
-def proj_shapefile(in_shp, out_shp, in_srs=None,
-                   out_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
+def project_shape(in_shp, out_shp, in_srs=None,
+                  out_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
     gdal.SetConfigOption("SHAPE_ENCODING", 'utf-8')
 
     # Filename of input OGR file
