@@ -3,7 +3,7 @@ import shutil
 import numpy as np
 from functools import partial
 from osgeo import gdal, ogr, osr
-from geospace._const import CREATION, CONFIG
+from geospace._const import CREATION
 from multiprocessing import Pool, cpu_count
 from geospace.shape import project_shape, shp_filter
 from geospace.utils import geo2imagexy, rep_file, zeros_tif, block_write
@@ -73,9 +73,9 @@ def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
     # clip with rectangle
     if rect_file is None:
         rect_file = '/vsimem/_rect.tif'
-    option = gdal.WarpOptions(multithread=True, options=CONFIG,
-                              creationOptions=CREATION, outputBounds=bound,
-                              dstSRS=outLayer.GetSpatialRef(), dstNodata=no_data,
+    option = gdal.WarpOptions(multithread=True, outputBounds=bound,
+                              dstSRS=outLayer.GetSpatialRef(),
+                              creationOptions=CREATION, dstNodata=no_data,
                               xRes=t[1], yRes=t[5], srcNodata=no_data,
                               resampleAlg=gdal.GRA_NearestNeighbour)
     rect = gdal.Warp(rect_file, ds, options=option)
@@ -99,7 +99,7 @@ def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
                             1], options=rasterize_option)
         poly_ds = None
 
-        option = gdal.WarpOptions(multithread=True, options=CONFIG,
+        option = gdal.WarpOptions(multithread=True,
                                   creationOptions=CREATION, dstNodata=0,
                                   xRes=rect.GetGeoTransform()[1],
                                   yRes=rect.GetGeoTransform()[5],

@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from osgeo import gdal, osr, ogr
-from geospace._const import CREATION, CONFIG, TYPE_MAP
+from geospace._const import CREATION, TYPE_MAP
 from geospace.utils import block_write, rep_file, ds_name, context_file
 
 
@@ -52,9 +52,10 @@ def resample(ds, out_path, **kwargs):
         return out_file
 
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
-    option = gdal.WarpOptions(multithread=True, options=CONFIG,
-                              creationOptions=CREATION, **kwargs,
-                              resampleAlg=resample_alg)
+    option = gdal.WarpOptions(multithread=True,
+                              creationOptions=CREATION,
+                              resampleAlg=resample_alg,
+                              **kwargs)
     gdal.Warp(out_file, ds, options=option)
 
     return out_file
@@ -79,10 +80,12 @@ def mosaic(ras_paths, out_path, **kwargs):
     else:
         no_data = kwargs.pop('srcNodata', None)
 
-    option = gdal.WarpOptions(multithread=True, options=CONFIG,
-                              dstNodata=no_data, srcNodata=no_data,
-                              creationOptions=CREATION, **kwargs,
-                              resampleAlg=resample_alg)
+    option = gdal.WarpOptions(multithread=True,
+                              dstNodata=no_data,
+                              srcNodata=no_data,
+                              creationOptions=CREATION,
+                              resampleAlg=resample_alg,
+                              **kwargs)
     gdal.Warp(out_file, ds, options=option)
 
     return out_file
@@ -154,9 +157,10 @@ def grib_to_tif(ds, out_path=None, **kwargs):
     SpatialRef = osr.SpatialReference()
     SpatialRef.ImportFromProj4("+proj=longlat +datum=WGS84 +ellps=WGS84")
     srs = kwargs.pop('dstSRS', SpatialRef)
-    option = gdal.WarpOptions(multithread=True, options=CONFIG,
-                              creationOptions=CREATION, **kwargs,
-                              dstSRS=srs)
+    option = gdal.WarpOptions(multithread=True,
+                              dstSRS=srs,
+                              creationOptions=CREATION,
+                              **kwargs)
     gdal.Warp(out_file, ds, options=option)
 
     return out_file

@@ -3,7 +3,6 @@ from osgeo import gdal
 # gdal config
 CREATION = ['TILED=YES', 'COMPRESS=DEFLATE',
             'ZLEVEL=3', 'PREDICTOR=1', 'BIGTIFF=YES']
-CONFIG = ["GDAL_CACHE_MAX=128"]
 
 # mapping between gdal type and ogr field type
 TYPE_MAP = {'uint8': gdal.GDT_Byte,

@@ -3,7 +3,7 @@ import numpy as np
 from osgeo import gdal, ogr, osr
 from geospace.utils import imagexy2geo, ds_name
 from geospace.shape import project_shape
-from geospace._const import CREATION, CONFIG
+from geospace._const import CREATION
 
 
 def rasterize(shp, attr, out_path, ds_eg, tem_path, **kwargs):
@@ -18,17 +18,20 @@ def rasterize(shp, attr, out_path, ds_eg, tem_path, **kwargs):
     # extent warp options
     ds_ex = gdal.Translate('/vsimem/_extent.tif', ds_eg, bandList=[1])
     t = ds_eg.GetGeoTransform()
-    temp_option = gdal.WarpOptions(multithread=True, options=CONFIG,
-                                   creationOptions=CREATION, **kwargs,
+    temp_option = gdal.WarpOptions(multithread=True,
+                                   creationOptions=CREATION,
                                    xRes=t[1] / 10, yRes=t[5] / 10,
-                                   outputType=gdal.GDT_Float64)
+                                   outputType=gdal.GDT_Float64,
+                                   **kwargs)
 
     ds_tem = gdal.Warp(tem_file, ds_ex, options=temp_option)
     band = ds_tem.GetRasterBand(1)
-    option = gdal.WarpOptions(multithread=True, options=CONFIG,
-                              creationOptions=CREATION, **kwargs,
-                              xRes=t[1], yRes=t[5], resampleAlg=gdal.GRA_Average,
-                              outputType=gdal.GDT_Float64)
+    option = gdal.WarpOptions(multithread=True,
+                              creationOptions=CREATION,
+                              xRes=t[1], yRes=t[5],
+                              resampleAlg=gdal.GRA_Average,
+                              outputType=gdal.GDT_Float64,
+                              **kwargs)
 
     driver = ogr.GetDriverByName('ESRI Shapefile')
     shp_factor = driver.Open(shp)
