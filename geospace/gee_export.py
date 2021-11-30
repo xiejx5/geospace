@@ -44,7 +44,7 @@ def gee_export_tif(image, filename, crs=None, crs_transform=None, scale=None, re
         print("Generating URL ...")
         params = {"name": name, "filePerBand": file_per_band}
         if region is None:
-            region = image.geometry()
+            region = image.geometry().getInfo()
         params["region"] = region
         if crs is not None:
             params["crs"] = crs
@@ -56,7 +56,7 @@ def gee_export_tif(image, filename, crs=None, crs_transform=None, scale=None, re
             params["scale"] = image.projection().nominalScale()
 
         url = image.getDownloadURL(params)
-        print("Downloading data from {}\nPlease wait ...".format(url))
+        print(f"Downloading data from {url}\nPlease wait ...")
         r = requests.get(url, stream=True)
 
         if r.status_code != 200:
@@ -73,17 +73,28 @@ def gee_export_tif(image, filename, crs=None, crs_transform=None, scale=None, re
         return
 
     try:
-        z = zipfile.ZipFile(filename_zip)
-        z.extractall(os.path.dirname(filename))
-        z.close()
+        with zipfile.ZipFile(filename_zip) as z:
+            z.extractall(os.path.dirname(filename))
         os.remove(filename_zip)
 
         if file_per_band:
-            print("Data downloaded to {}".format(os.path.dirname(filename)))
+            print(f"Data downloaded to {os.path.dirname(filename)}")
         else:
-            print("Data downloaded to {}".format(filename))
+            print(f"Data downloaded to {filename}")
     except Exception as e:
         print(e)
+
+    # ee.batch.Export.image.toDrive(
+    #     **{
+    #         'image': image,
+    #         'description': asset,
+    #         'fileNamePrefix': asset,  # this is the name actually
+    #         'folder': 'SoilGrids',
+    #         'region': fc.geometry(),
+    #         'crs': 'EPSG:4326',
+    #         'crsTransform': crs_transform,
+    #         'maxPixels': 1e13
+    #     }).start()
 
     # ee.batch.Export.image.toDrive(
     #     **{
