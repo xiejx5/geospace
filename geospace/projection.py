@@ -28,10 +28,10 @@ def read_srs(srs):
     elif isinstance(srs, List):
         for s in srs:
             SpatialRef = read_srs(s)
-            if SpatialRef.ExportToWkt() != '':
+            if SpatialRef is not None and SpatialRef.ExportToWkt() != '':
                 return SpatialRef
-
-    raise(ValueError("srs must be set"))
+        raise(ValueError("srs must be set"))
+    return None
 
 
 def coord_trans(in_srs, out_srs):
