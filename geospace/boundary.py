@@ -98,6 +98,6 @@ def grid_bound(ds, regions):
     ds = ds_name(ds)[0]
     t = ds.GetGeoTransform()
     bound, bound_srs = bound_layers(regions)
-    bound, bound_srs = bound_raster(ds, bound, bound_srs)
+    bound = bound_raster(ds, bound, bound_srs)[0]
     crs_transform = [t[1], 0, bound[0], 0, t[5], bound[-1]]
     return bound, crs_transform
