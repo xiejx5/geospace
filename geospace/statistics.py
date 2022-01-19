@@ -6,6 +6,7 @@ from osgeo import gdal, ogr, osr
 from geospace._const import CREATION
 from multiprocessing import Pool, cpu_count
 from geospace.shape import project_shape, shp_filter
+from geospace.projection import read_srs, coord_trans
 from geospace.utils import geo2imagexy, rep_file, zeros_tif, block_write
 
 try:
@@ -86,12 +87,9 @@ def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
         trans[1] = trans[1] / enlarge
         trans[5] = trans[5] / enlarge
 
-        # set SpatialReference
-        srs = outLayer.GetSpatialRef()
-
         zeros_tif(poly_file, int(clip_range[2] * enlarge),
                   int(clip_range[3] * enlarge), 1,
-                  gdal.GDT_Byte, trans, srs, no_data=2)
+                  gdal.GDT_Byte, trans, outLayer.GetSpatialRef(), no_data=2)
         poly_ds = gdal.Open(poly_file, gdal.GA_Update)
 
         # Rasterize
@@ -137,24 +135,10 @@ def _extract_stat(ras, shp, PROJ=None, no_data=None, **kwargs):
     inLayer = source_ds.GetLayer()
     inLayerDefn = inLayer.GetLayerDefn()
 
-    # input SpatialReference
-    inSpatialRef = inLayer.GetSpatialRef()
-
     # output SpatialReference
-    outSpatialRef = osr.SpatialReference()
-    if ds.GetProjectionRef():
-        prj_srs = ds.GetProjectionRef()
-        outSpatialRef.ImportFromWkt(prj_srs)
-    elif PROJ:
-        outSpatialRef.ImportFromProj4(PROJ)
-        ds.SetProjection(outSpatialRef.ExportToWkt())
-    else:
-        raise(ValueError("PROJ must be initialed"))
+    outSpatialRef = read_srs([ds, PROJ])
 
-    # create the CoordinateTransformation
-    if int(gdal.__version__[0]) >= 3:
-        outSpatialRef.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
-    coordTrans = osr.CoordinateTransformation(inSpatialRef, outSpatialRef)
+    coordTrans = coord_trans(inLayer, outSpatialRef)
 
     # initial output
     row = inLayer.GetFeatureCount()
@@ -223,20 +207,8 @@ def extract(ras, shp, PROJ=None, no_data=None, stat=False, **kwargs):
     else:
         ds = ras
 
-    # output SpatialReference
-    outSpatialRef = osr.SpatialReference()
-    if ds.GetProjectionRef():
-        prj_srs = ds.GetProjectionRef()
-        outSpatialRef.ImportFromWkt(prj_srs)
-    elif PROJ:
-        prj_srs = PROJ
-        outSpatialRef.ImportFromProj4(prj_srs)
-        ds.SetProjection(outSpatialRef.ExportToWkt())
-    else:
-        raise(ValueError("PROJ must be initialed"))
-
     out_shp = '/vsimem/outline.shp'
-    project_shape(shp, out_shp, out_srs=outSpatialRef)
+    project_shape(shp, out_shp, out_srs=read_srs([ds, PROJ]))
     outDataSet = ogr.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 
@@ -262,7 +234,7 @@ def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
         ds = in_shp
 
     in_layer = ds.GetLayer()
-    srs = ds.GetLayer().GetSpatialRef()
+    srs = in_layer.GetSpatialRef()
 
     # project clip_shp
     if save_cache:

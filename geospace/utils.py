@@ -1,9 +1,10 @@
 import os
 import json
 import numpy as np
-from osgeo import gdal, osr, ogr
+from osgeo import gdal
 from collections.abc import Iterable
 from geospace._const import CREATION
+from geospace.projection import read_srs, coord_trans
 
 
 def block_write(in_ds, in_bands, out_band, map_fun,
@@ -112,28 +113,7 @@ def meshgrid(ds, geo_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
     if 'PROJCS' not in ds.GetProjection():
         return x, y
 
-    # projection spatial reference
-    prj_srs = osr.SpatialReference()
-    prj_srs.ImportFromWkt(ds.GetProjection())
-
-    # output SpatialReference
-    driver = ogr.GetDriverByName("ESRI Shapefile")
-    if isinstance(geo_srs, osr.SpatialReference):
-        outSpatialRef = geo_srs
-    elif os.path.isfile(geo_srs):
-        ds_srs = driver.Open(geo_srs)
-        outSpatialRef = ds_srs.GetLayer().GetSpatialRef()
-        ds_srs = None
-    else:
-        outSpatialRef = osr.SpatialReference()
-        outSpatialRef.ImportFromProj4(geo_srs)
-    geo_srs = outSpatialRef
-
-    # create the CoordinateTransformation
-    if int(gdal.__version__[0]) >= 3:
-        geo_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
-        prj_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
-    trans = osr.CoordinateTransformation(prj_srs, geo_srs)
+    trans = coord_trans(ds, geo_srs)
     lonlat = np.array(trans.TransformPoints(np.concatenate([x.reshape(-1, 1), y.reshape(-1, 1)], axis=1)))
     lon = lonlat[:, 0].reshape(x.shape)
     lat = lonlat[:, 1].reshape(y.shape)
@@ -193,11 +173,6 @@ def zeros_tif(out_file, x_size, y_size, n_band,
     ds.SetGeoTransform(tuple(trans))
 
     # set SpatialReference
-    if isinstance(srs, osr.SpatialReference):
-        inSpatialRef = srs
-    else:
-        inSpatialRef = osr.SpatialReference()
-        inSpatialRef.ImportFromProj4(srs)
-    ds.SetProjection(inSpatialRef.ExportToWkt())
+    ds.SetSpatialRef(read_srs(srs))
 
     return out_file

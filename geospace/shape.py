@@ -1,6 +1,7 @@
 import os
 import locale
-from osgeo import gdal, ogr, osr
+from osgeo import gdal, ogr
+from geospace.projection import read_srs, coord_trans
 
 
 def shp_buffer(in_shp, out_shp, buffdist, in_srs=None):
@@ -13,16 +14,7 @@ def shp_buffer(in_shp, out_shp, buffdist, in_srs=None):
         inLayer = source_ds.GetLayer()
 
     # input SpatialReference
-    inSpatialRef = inLayer.GetSpatialRef()
-    if not inSpatialRef:
-        if in_srs is not None:
-            if isinstance(in_srs, osr.SpatialReference):
-                inSpatialRef = in_srs
-            else:
-                inSpatialRef = osr.SpatialReference()
-                inSpatialRef.ImportFromProj4(in_srs)
-        else:
-            raise(ValueError("in_srs must be set"))
+    inSpatialRef = read_srs([inLayer, in_srs])
 
     # create the output layer
     if 'vsimem' not in os.path.dirname(out_shp):
@@ -77,32 +69,13 @@ def project_shape(in_shp, out_shp, in_srs=None,
         inLayer = source_ds.GetLayer()
 
     # input SpatialReference
-    inSpatialRef = inLayer.GetSpatialRef()
-    if not inSpatialRef:
-        if in_srs is not None:
-            if isinstance(in_srs, osr.SpatialReference):
-                inSpatialRef = in_srs
-            else:
-                inSpatialRef = osr.SpatialReference()
-                inSpatialRef.ImportFromProj4(in_srs)
-        else:
-            raise(ValueError("in_srs must be set"))
+    inSpatialRef = read_srs([inLayer, in_srs])
 
     # output SpatialReference
-    if isinstance(out_srs, osr.SpatialReference):
-        outSpatialRef = out_srs
-    elif os.path.isfile(out_srs):
-        ds_temp = driver.Open(out_srs)
-        outSpatialRef = ds_temp.GetLayer().GetSpatialRef()
-        ds_temp = None
-    else:
-        outSpatialRef = osr.SpatialReference()
-        outSpatialRef.ImportFromProj4(out_srs)
+    outSpatialRef = read_srs(out_srs)
 
     # create the CoordinateTransformation
-    if int(gdal.__version__[0]) >= 3:
-        outSpatialRef.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
-    coordTrans = osr.CoordinateTransformation(inSpatialRef, outSpatialRef)
+    coordTrans = coord_trans(inSpatialRef, outSpatialRef)
 
     # create the output layer
     if 'vsimem' not in os.path.dirname(out_shp):
@@ -159,19 +132,11 @@ def split_shp(outDir, shp_paths, name_index=1):
         source_ds = driver.Open(shp)
         inLayer = source_ds.GetLayer()
 
-        # input SpatialReference
-        inSpatialRef = inLayer.GetSpatialRef()
-
         # output SpatialReference
-        outSpatialRef = osr.SpatialReference()
-        prj_srs = "+proj=longlat +datum=WGS84 +ellps=WGS84"
-        outSpatialRef.ImportFromProj4(prj_srs)
+        outSpatialRef = read_srs("+proj=longlat +datum=WGS84 +ellps=WGS84")
 
         # create the CoordinateTransformation
-        if int(gdal.__version__[0]) >= 3:
-            outSpatialRef.SetAxisMappingStrategy(
-                osr.OAMS_TRADITIONAL_GIS_ORDER)
-        coordTrans = osr.CoordinateTransformation(inSpatialRef, outSpatialRef)
+        coordTrans = coord_trans(inLayer, outSpatialRef)
 
         # loop through the input features
         inLayerDefn = inLayer.GetLayerDefn()

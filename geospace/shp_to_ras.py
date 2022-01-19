@@ -1,9 +1,10 @@
 import os
 import numpy as np
-from osgeo import gdal, ogr, osr
-from geospace.utils import imagexy2geo, ds_name
-from geospace.shape import project_shape
+from osgeo import gdal, ogr
 from geospace._const import CREATION
+from geospace.projection import read_srs
+from geospace.shape import project_shape
+from geospace.utils import imagexy2geo, ds_name
 
 
 def rasterize(shp, attr, out_path, ds_eg, tem_path,
@@ -61,10 +62,7 @@ def download_tiles(shp, tile_pixel):
     target_ds = gdal.GetDriverByName('GTiff').Create(
         '/vsimem/_tile.tif', x_res, y_res, 1, gdal.GDT_Byte)
     target_ds.SetGeoTransform((-180, tile_pixel, 0, 90, 0, -tile_pixel))
-    target_srs = osr.SpatialReference()
-    target_srs.ImportFromProj4(
-        '+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
-    target_ds.SetProjection(target_srs.ExportToWkt())
+    target_ds.SetSpatialRef(read_srs('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs'))
     band = target_ds.GetRasterBand(1)
     band.SetNoDataValue(0)
 
@@ -95,8 +93,7 @@ def masked_outside(shp, ds):
     # create the output layer
     driver = ogr.GetDriverByName("ESRI Shapefile")
     out_shp = '/vsimem/outline_wgs84.shp'
-    out_srs = osr.SpatialReference(wkt=ds.GetProjection())
-    project_shape(shp, out_shp, out_srs=out_srs)
+    project_shape(shp, out_shp, out_srs=read_srs(ds))
     outDataSet = driver.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 

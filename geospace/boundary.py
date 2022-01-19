@@ -1,6 +1,7 @@
 import numpy as np
-from osgeo import gdal, ogr, osr
+from osgeo import ogr
 from geospace.utils import geo2imagexy, ds_name
+from geospace.projection import read_srs, coord_trans
 
 
 def _prj_bound(ds, bound, bound_srs):
@@ -16,23 +17,8 @@ def _prj_bound(ds, bound, bound_srs):
     poly = ogr.Geometry(ogr.wkbPolygon)
     poly.AddGeometry(ring)
 
-    # output SpatialReference
-    if isinstance(bound_srs, osr.SpatialReference):
-        outSpatialRef = bound_srs
-    else:
-        outSpatialRef = osr.SpatialReference()
-        outSpatialRef.ImportFromProj4(bound_srs)
-
-    # raster spatial reference
-    ras_srs = osr.SpatialReference()
-    ras_srs.ImportFromWkt(ds.GetProjection())
-
-    # create the CoordinateTransformation
-    if int(gdal.__version__[0]) >= 3:
-        outSpatialRef.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
-        ras_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
-    trans = osr.CoordinateTransformation(outSpatialRef, ras_srs)
-    trans_reverse = osr.CoordinateTransformation(ras_srs, outSpatialRef)
+    trans = coord_trans(bound_srs, ds)
+    trans_reverse = coord_trans(ds, bound_srs)
 
     # create a geometry from coordinates
     t = ds.GetGeoTransform()
@@ -64,7 +50,7 @@ def _prj_bound(ds, bound, bound_srs):
 
 
 def bound_raster(ds, bound, bound_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
-    ds, ras = ds_name(ds)
+    ds, _ = ds_name(ds)
     t = ds.GetGeoTransform()
     x_min, y_min, x_max, y_max = _prj_bound(ds, bound, bound_srs)
     ulX, ulY = geo2imagexy(ds, x_min, y_min)
@@ -80,11 +66,7 @@ def bound_raster(ds, bound, bound_srs="+proj=longlat +datum=WGS84 +ellps=WGS84")
     bound = [min(ul_lon, lr_lon), min(ul_lat, lr_lat),
              max(ul_lon, lr_lon), max(ul_lat, lr_lat)]
 
-    # raster spatial reference as bound srs
-    bound_srs = osr.SpatialReference()
-    bound_srs.ImportFromWkt(ds.GetProjection())
-
-    return bound, bound_srs.ExportToProj4()
+    return bound, read_srs(ds).ExportToProj4()
 
 
 def bound_layers(layers):
@@ -98,9 +80,8 @@ def bound_layers(layers):
     win = np.array([lyr.GetExtent() for lyr in layers])
     bound = [win[:, 0:2].min(), win[:, 2:].min(),
              win[:, 0:2].max(), win[:, 2:].max()]
-    bound_srs = layers[0].GetSpatialRef()
 
-    return bound, bound_srs.ExportToProj4()
+    return bound, read_srs(layers).ExportToProj4()
 
 
 def grid_bound(ds, regions):

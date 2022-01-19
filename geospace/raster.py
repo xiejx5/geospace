@@ -2,6 +2,7 @@ import os
 import numpy as np
 from osgeo import gdal, osr, ogr
 from geospace._const import CREATION, TYPE_MAP
+from geospace.projection import read_srs
 from geospace.utils import block_write, rep_file, ds_name, context_file
 
 
@@ -91,34 +92,11 @@ def project_raster(ds, out_path, **kwargs):
 
     # input SpatialReference
     in_srs = kwargs.pop('srcSRS', None)
-    inSpatialRef = ds.GetSpatialRef()
-    if not inSpatialRef:
-        if in_srs is not None:
-            if isinstance(in_srs, osr.SpatialReference):
-                inSpatialRef = in_srs
-            else:
-                inSpatialRef = osr.SpatialReference()
-                inSpatialRef.ImportFromProj4(in_srs)
-        else:
-            raise(ValueError("srcSRS must be set"))
+    inSpatialRef = read_srs([ds, in_srs])
 
     # output SpatialReference
     out_srs = kwargs.pop('dstSRS', "+proj=longlat +datum=WGS84 +ellps=WGS84")
-    if isinstance(out_srs, osr.SpatialReference):
-        outSpatialRef = out_srs
-    elif os.path.isfile(out_srs):
-        ext = os.path.splitext(os.path.basename(out_srs))[1]
-        if ext == '.tif':
-            ds_temp = gdal.Open(out_srs)
-            outSpatialRef = ds_temp.GetSpatialRef()
-            ds_temp = None
-        else:
-            ds_temp = ogr.Open(out_srs)
-            outSpatialRef = ds_temp.GetLayer().GetSpatialRef()
-            ds_temp = None
-    else:
-        outSpatialRef = osr.SpatialReference()
-        outSpatialRef.ImportFromProj4(out_srs)
+    outSpatialRef = read_srs(out_srs)
 
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
     option = gdal.WarpOptions(creationOptions=CREATION,
@@ -146,11 +124,9 @@ def grib_to_tif(ds, out_path=None, **kwargs):
     if os.path.exists(out_file):
         return out_file
 
-    SpatialRef = osr.SpatialReference()
-    SpatialRef.ImportFromProj4("+proj=longlat +datum=WGS84 +ellps=WGS84")
-    srs = kwargs.pop('dstSRS', SpatialRef)
+    srs = kwargs.pop('dstSRS', "+proj=longlat +datum=WGS84 +ellps=WGS84")
     option = gdal.WarpOptions(multithread=True,
-                              dstSRS=srs,
+                              dstSRS=read_srs(srs),
                               creationOptions=CREATION,
                               **kwargs)
     gdal.Warp(out_file, ds, options=option)
@@ -193,17 +169,6 @@ def tif_copy_assign(out_file, ds_eg, array, srs=None, no_data=None):
     ds.SetGeoTransform(tuple(trans))
 
     # set SpatialReference
-    if srs is None:
-        if ds_eg.GetProjection():
-            inSpatialRef = osr.SpatialReference(wkt=ds_eg.GetProjection())
-        else:
-            raise(Exception('SpatialReference must be passed'))
-    else:
-        if isinstance(srs, osr.SpatialReference):
-            inSpatialRef = srs
-        else:
-            inSpatialRef = osr.SpatialReference()
-            inSpatialRef.ImportFromProj4(srs)
-    ds.SetProjection(inSpatialRef.ExportToWkt())
+    ds.SetSpatialRef(read_srs([srs, ds_eg]))
 
     return out_file
