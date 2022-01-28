@@ -71,11 +71,10 @@ def bound_raster(ds, bound, bound_srs="+proj=longlat +datum=WGS84 +ellps=WGS84")
 
 def bound_layers(layers):
     # clip extent
-    driver = ogr.GetDriverByName('ESRI Shapefile')
     if not isinstance(layers, list):
         layers = [layers]
     if isinstance(layers[0], str):
-        shp_in = [driver.Open(lyr) for lyr in layers]
+        shp_in = [ogr.Open(lyr) for lyr in layers]
         layers = [s.GetLayer() for s in shp_in]
     win = np.array([lyr.GetExtent() for lyr in layers])
     bound = [win[:, 0:2].min(), win[:, 2:].min(),

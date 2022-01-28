@@ -131,7 +131,7 @@ def _extract_stat(ras, shp, PROJ=None, no_data=None, **kwargs):
 
     # Filename of input OGR file
     driver = ogr.GetDriverByName("ESRI Shapefile")
-    source_ds = driver.Open(shp)
+    source_ds = ogr.Open(shp)
     inLayer = source_ds.GetLayer()
     inLayerDefn = inLayer.GetLayerDefn()
 
@@ -229,7 +229,7 @@ def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
 
     # get layer of in_shp
     if isinstance(in_shp, str):
-        ds = driver.Open(in_shp)
+        ds = ogr.Open(in_shp)
     else:
         ds = in_shp
 
@@ -243,7 +243,7 @@ def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
     else:
         proj_shp = '/vsimem/_proj.shp'
     project_shape(clip_shp, proj_shp, out_srs=srs)
-    clip_ds = driver.Open(proj_shp)
+    clip_ds = ogr.Open(proj_shp)
     clip_layer = clip_ds.GetLayer()
 
     # export out_shp

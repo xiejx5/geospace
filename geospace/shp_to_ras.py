@@ -35,8 +35,7 @@ def rasterize(shp, attr, out_path, ds_eg, tem_path,
                               outputType=gdal.GDT_Float64,
                               **kwargs)
 
-    driver = ogr.GetDriverByName('ESRI Shapefile')
-    shp_factor = driver.Open(shp)
+    shp_factor = ogr.Open(shp)
     layer = shp_factor.GetLayer()
 
     # create and use RasterizeLayer
@@ -50,10 +49,9 @@ def rasterize(shp, attr, out_path, ds_eg, tem_path,
 
 def download_tiles(shp, tile_pixel):
     # create the output layer
-    driver = ogr.GetDriverByName("ESRI Shapefile")
     out_shp = '/vsimem/outline_wgs84.shp'
     project_shape(shp, out_shp)
-    outDataSet = driver.Open(out_shp)
+    outDataSet = ogr.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 
     # Create the destination data source
@@ -91,10 +89,9 @@ def masked_outside(shp, ds):
                  (2 + ds.ReadAsArray(0, 0, 1, 1).dtype.itemsize)) + 1)
 
     # create the output layer
-    driver = ogr.GetDriverByName("ESRI Shapefile")
     out_shp = '/vsimem/outline_wgs84.shp'
     project_shape(shp, out_shp, out_srs=read_srs(ds))
-    outDataSet = driver.Open(out_shp)
+    outDataSet = ogr.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 
     band = ds.GetRasterBand(1)

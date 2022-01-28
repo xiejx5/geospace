@@ -10,7 +10,7 @@ def shp_buffer(in_shp, out_shp, buffdist, in_srs=None):
     if isinstance(in_shp, ogr.Layer):
         inLayer = in_shp
     else:
-        source_ds = driver.Open(in_shp)
+        source_ds = ogr.Open(in_shp)
         inLayer = source_ds.GetLayer()
 
     # input SpatialReference
@@ -65,7 +65,7 @@ def project_shape(in_shp, out_shp, in_srs=None,
     if isinstance(in_shp, ogr.Layer):
         inLayer = in_shp
     else:
-        source_ds = driver.Open(in_shp)
+        source_ds = ogr.Open(in_shp)
         inLayer = source_ds.GetLayer()
 
     # input SpatialReference
@@ -129,7 +129,7 @@ def split_shp(outDir, shp_paths, name_index=1):
     for shp in shp_paths:
         # Filename of input OGR file
         driver = ogr.GetDriverByName("ESRI Shapefile")
-        source_ds = driver.Open(shp)
+        source_ds = ogr.Open(shp)
         inLayer = source_ds.GetLayer()
 
         # output SpatialReference
@@ -175,7 +175,7 @@ def split_shp(outDir, shp_paths, name_index=1):
 
 def shp_filter(shps, filter_sql, filter_shp=None):
     driver = ogr.GetDriverByName("ESRI Shapefile")
-    ds_shp = driver.Open(shps, 0)
+    ds_shp = ogr.Open(shps, 0)
     layer = ds_shp.GetLayer()
     layer.SetAttributeFilter(filter_sql)
     if filter_shp is None:
