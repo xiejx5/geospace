@@ -1,8 +1,8 @@
 from osgeo import gdal
 
 # gdal config
-CREATION = ['TILED=YES', 'COMPRESS=DEFLATE',
-            'ZLEVEL=3', 'PREDICTOR=1', 'BIGTIFF=YES']
+CREATION = ['BIGTIFF=YES', 'TILED=YES', 'NUM_THREADS=ALL_CPUS',
+            'COMPRESS=ZSTD', 'PREDICTOR=1', 'ZSTD_LEVEL=1']
 
 # mapping between gdal type and ogr field type
 TYPE_MAP = {'uint8': gdal.GDT_Byte,

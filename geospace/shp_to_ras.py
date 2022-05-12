@@ -3,7 +3,7 @@ import numpy as np
 from osgeo import gdal, ogr
 from geospace._const import CREATION
 from geospace.projection import read_srs
-from geospace.shape import project_shape
+from geospace.shape import shp_projection
 from geospace.utils import imagexy2geo, ds_name
 
 
@@ -50,7 +50,7 @@ def rasterize(shp, attr, out_path, ds_eg, tem_path,
 def download_tiles(shp, tile_pixel):
     # create the output layer
     out_shp = '/vsimem/outline_wgs84.shp'
-    project_shape(shp, out_shp)
+    shp_projection(shp, out_shp)
     outDataSet = ogr.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 
@@ -90,7 +90,7 @@ def masked_outside(shp, ds):
 
     # create the output layer
     out_shp = '/vsimem/outline_wgs84.shp'
-    project_shape(shp, out_shp, out_srs=read_srs(ds))
+    shp_projection(shp, out_shp, out_srs=read_srs(ds))
     outDataSet = ogr.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 

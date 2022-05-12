@@ -1,11 +1,12 @@
 import os
 import shutil
 import numpy as np
+from osgeo import gdal, ogr
 from functools import partial
-from osgeo import gdal, ogr, osr
 from geospace._const import CREATION
 from multiprocessing import Pool, cpu_count
-from geospace.shape import project_shape, shp_filter
+from geospace.spatial_calc import real_area
+from geospace.shape import shp_projection, shp_filter
 from geospace.projection import read_srs, coord_trans
 from geospace.utils import geo2imagexy, rep_file, zeros_tif, block_write
 
@@ -113,6 +114,14 @@ def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
         burn_band = burn_ds.GetRasterBand(1)
         burn_data = burn_band.ReadAsArray()
 
+    # calculate real area for geodetic grids
+    if 'PROJCS' not in burn_ds.GetProjection():
+        row_area = real_area(burn_ds, np.arange(burn_data.shape[0]), return_row_area=True)
+        burn_area = burn_data * row_area.reshape([burn_data.shape[0], -1])
+        total_area = np.sum(burn_area)
+        if total_area > 0:
+            burn_data = burn_area / total_area
+
     # change rect
     for c in range(1, rect.RasterCount + 1):
         rect_band = rect.GetRasterBand(c)
@@ -208,7 +217,7 @@ def extract(ras, shp, PROJ=None, no_data=None, stat=False, **kwargs):
         ds = ras
 
     out_shp = '/vsimem/outline.shp'
-    project_shape(shp, out_shp, out_srs=read_srs([ds, PROJ]))
+    shp_projection(shp, out_shp, out_srs=read_srs([ds, PROJ]))
     outDataSet = ogr.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 
@@ -242,7 +251,7 @@ def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
             os.path.basename(clip_shp))[0] + '_proj.shp')
     else:
         proj_shp = '/vsimem/_proj.shp'
-    project_shape(clip_shp, proj_shp, out_srs=srs)
+    shp_projection(clip_shp, proj_shp, out_srs=srs)
     clip_ds = ogr.Open(proj_shp)
     clip_layer = clip_ds.GetLayer()
 
@@ -279,24 +288,43 @@ def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
     return mean_logK
 
 
-def basin_average_worker(shp, rasters, basin_id, **kwargs):
-    filter_sql = f"STAID = '{basin_id}'"
+def basin_average_worker(shp, rasters, s, t, field, basin_id, ** kwargs):
+    filter_sql = f"{field} = '{basin_id}'"
     filter_shp = shp_filter(shp, filter_sql)
-    one_out = np.full(len(rasters), np.nan)
+    one_out = np.full(t[-1], np.nan)
     for i, ras in enumerate(rasters):
-        one_out[i] = np.squeeze(extract(ras, filter_shp, enlarge=10,
+        one_out[s[i]:t[i]] = np.squeeze(extract(ras, filter_shp, enlarge=10,
                                         ext=basin_id, stat=True, **kwargs))
     return one_out
 
 
-def basin_average(shp, rasters, basins_id, **kwargs):
+def basin_average(shp, rasters, basins_id=None, field='STAID', **kwargs):
     if isinstance(rasters, str):
         rasters = [rasters]
-    with Pool(cpu_count() * 3 // 4) as p:
-        output = p.map(partial(basin_average_worker, shp, rasters, **kwargs), basins_id)
+    if basins_id is None:
+        ds = ogr.Open(shp)
+        layer = ds.GetLayer()
+        basins_id = range(layer.GetFeatureCount())
+        field = None
+    if isinstance(basins_id, str) or isinstance(basins_id, int):
+        basins_id = [basins_id]
+
+    n_bands = [gdal.Open(ras).RasterCount for ras in rasters]
+    t = np.cumsum(n_bands)
+    s = np.roll(t, 1)
+    s[0] = 0
+
+    with Pool(min(cpu_count() * 3 // 4, len(basins_id))) as p:
+        output = p.map(partial(basin_average_worker, shp, rasters,
+                               s, t, field, ** kwargs), basins_id)
     if kwargs.pop('save_cache', False):
         if os.path.exists('cache'):
             shutil.rmtree('cache')
 
-    names = [os.path.splitext(os.path.basename(i))[0] for i in rasters]
-    return pd.DataFrame(output, columns=names)
+    names = np.zeros(t[-1], dtype='object')
+    for i, ras in enumerate(rasters):
+        string = os.path.splitext(os.path.basename(ras))[0]
+        names[s[i]:t[i]] = np.core.defchararray.add(string, np.char.mod('%d', np.arange(n_bands[i])))
+        names[s[i]] = string
+
+    return pd.DataFrame(output, columns=names, index=basins_id)
