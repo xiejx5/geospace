@@ -5,10 +5,11 @@ from osgeo import gdal, ogr
 from functools import partial
 from geospace._const import CREATION
 from multiprocessing import Pool, cpu_count
+from geospace.projection import read_srs
 from geospace.spatial_calc import real_area
-from geospace.shape import shp_projection, shp_filter
-from geospace.projection import read_srs, coord_trans
-from geospace.utils import geo2imagexy, rep_file, zeros_tif, block_write
+from geospace.boundary import _enlarge_bound
+from geospace.shape import shp_projection, shp_filter, shp_geom_map
+from geospace.utils import rep_file, zeros_tif, block_write, ds_name
 
 try:
     import pandas as pd
@@ -26,53 +27,17 @@ def _map_burn(in_datas):
     return rect_data.filled()
 
 
-def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
-         save_cache=False, ext=None, new=True, rasterize_option=['ALL_TOUCHED=TRUE']):
+def _clip(ds, outLayer, rect_file=None, enlarge=10, save_cache=False,
+          reuse_cache=False, ext='', rasterize_option=['ALL_TOUCHED=TRUE']):
+    # get no data
+    no_data = ds.GetRasterBand(1).GetNoDataValue()
 
-    # Open the data source and read in the extent
+    # get shp extent in form of raster grids
     t = ds.GetGeoTransform()
     x_min, x_max, y_min, y_max = outLayer.GetExtent()
-    ulX, ulY = geo2imagexy(ds, x_min, y_min)
-    lrX, lrY = geo2imagexy(ds, x_max, y_max)
-    clip_range = [min(ulX, lrX), min(ulY, lrY),
-                  abs(ulX - lrX) + 1, abs(ulY - lrY) + 1]
-    ul_lon = t[0] + t[1] * clip_range[0] + t[2] * clip_range[1]
-    ul_lat = t[3] + t[4] * clip_range[0] + t[5] * clip_range[1]
-    lr_lon = t[0] + t[1] * (clip_range[0] + clip_range[2]) + \
-        t[2] * (clip_range[1] + clip_range[3])
-    lr_lat = t[3] + t[4] * (clip_range[0] + clip_range[2]) + \
-        t[5] * (clip_range[1] + clip_range[3])
-    bound = [min(ul_lon, lr_lon), min(ul_lat, lr_lat),
-             max(ul_lon, lr_lon), max(ul_lat, lr_lat)]
+    bound, clip_range = _enlarge_bound(ds, x_min, y_min, x_max, y_max)
 
-    if save_cache:
-        cache_dir = 'cache'
-        if not os.path.exists(cache_dir):
-            os.mkdir(cache_dir)
-
-        if ext is None:
-            poly_file = rep_file(cache_dir, 'poly.tif')
-            burn_file = rep_file(cache_dir, 'burn.tif')
-        elif new:
-            poly_file = rep_file(cache_dir, str(ext) + '_poly.tif')
-            burn_file = rep_file(cache_dir, str(ext) + '_burn.tif')
-        else:
-            poly_file = os.path.join(cache_dir, str(ext) + '_poly.tif')
-            burn_file = os.path.join(cache_dir, str(ext) + '_burn.tif')
-    else:
-        poly_file = '/vsimem/_poly.tif'
-        burn_file = '/vsimem/_burn.tif'
-
-    # set no data
-    if ds.GetRasterBand(1).GetNoDataValue() is not None:
-        no_data = ds.GetRasterBand(1).GetNoDataValue()
-    if no_data is None:
-        raise(ValueError("no_data must be initialed"))
-
-    # create temp bool in_poly tif
-    has_old = os.path.exists(burn_file) and not new
-
-    # clip with rectangle
+    # clip with rectangle, generate rect_file
     if rect_file is None:
         rect_file = '/vsimem/_rect.tif'
     option = gdal.WarpOptions(multithread=True, outputBounds=bound,
@@ -82,12 +47,26 @@ def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
                               resampleAlg=gdal.GRA_NearestNeighbour)
     rect = gdal.Warp(rect_file, ds, options=option)
 
-    if not has_old:
+    # paths of cached poly.tif and burn.tif
+    if save_cache:
+        reuse_cache = True
+        cache_dir = 'cache'
+        if not os.path.exists(cache_dir):
+            os.mkdir(cache_dir)
+        burn_file = os.path.join(cache_dir, str(ext) + '_burn.tif')
+    elif reuse_cache:
+        burn_file = os.path.join('/vsimem/', str(ext) + '_burn.tif')
+    else:
+        burn_file = '/vsimem/_burn_renew.tif'
+
+    # create boolean poly.tif and burn.tif
+    burn_ds = gdal.Open(burn_file)
+    if (not reuse_cache) or (burn_ds is None):
         # set geotransform
         trans = list(rect.GetGeoTransform())
         trans[1] = trans[1] / enlarge
         trans[5] = trans[5] / enlarge
-
+        poly_file = '/vsimem/_poly.tif'
         zeros_tif(poly_file, int(clip_range[2] * enlarge),
                   int(clip_range[3] * enlarge), 1,
                   gdal.GDT_Byte, trans, outLayer.GetSpatialRef(), no_data=2)
@@ -97,7 +76,6 @@ def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
         gdal.RasterizeLayer(poly_ds, [1], outLayer, burn_values=[
                             1], options=rasterize_option)
         poly_ds = None
-
         option = gdal.WarpOptions(multithread=True,
                                   creationOptions=CREATION, dstNodata=0,
                                   xRes=rect.GetGeoTransform()[1],
@@ -106,13 +84,9 @@ def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
                                   outputType=gdal.GDT_Float32)
         burn_ds = gdal.Warp(burn_file, poly_file, options=option)
 
-        # return bool matrix in polygon
-        burn_band = burn_ds.GetRasterBand(1)
-        burn_data = burn_band.ReadAsArray()
-    else:
-        burn_ds = gdal.Open(burn_file)
-        burn_band = burn_ds.GetRasterBand(1)
-        burn_data = burn_band.ReadAsArray()
+    # return bool matrix in the shapefile polygon
+    burn_band = burn_ds.GetRasterBand(1)
+    burn_data = burn_band.ReadAsArray()
 
     # calculate real area for geodetic grids
     if 'PROJCS' not in burn_ds.GetProjection():
@@ -122,7 +96,7 @@ def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
         if total_area > 0:
             burn_data = burn_area / total_area
 
-    # change rect
+    # change value in the rectangle
     for c in range(1, rect.RasterCount + 1):
         rect_band = rect.GetRasterBand(c)
         if rect_band.GetNoDataValue() is None:
@@ -132,65 +106,39 @@ def clip(ds, outLayer, no_data=None, rect_file=None, enlarge=10,
     return rect, burn_data
 
 
-def _extract_stat(ras, shp, PROJ=None, no_data=None, **kwargs):
-    if isinstance(ras, str):
-        ds = gdal.Open(ras)
+def extract(ras, shp, ras_srs="+proj=longlat +datum=WGS84 +ellps=WGS84",
+            no_data=None, stat=False, **kwargs):
+    ds, _ = ds_name(ras)
+
+    # set projection
+    SpatialRef = read_srs([ds, ras_srs])
+    ds.SetProjection(SpatialRef.ExportToWkt())
+    out_shp = '/vsimem/_outline.shp'
+    shp_projection(shp, out_shp, out_srs=SpatialRef)
+    outDataSet = ogr.Open(out_shp)
+    outLayer = outDataSet.GetLayer()
+
+    # set no data
+    if ds.GetRasterBand(1).GetNoDataValue() is not None:
+        no_data = ds.GetRasterBand(1).GetNoDataValue()
+    elif no_data is not None:
+        ds.GetRasterBand(1).SetNoDataValue(no_data)
     else:
-        ds = ras
+        raise (ValueError("no_data must be initialized"))
 
-    # Filename of input OGR file
-    driver = ogr.GetDriverByName("ESRI Shapefile")
-    source_ds = ogr.Open(shp)
-    inLayer = source_ds.GetLayer()
-    inLayerDefn = inLayer.GetLayerDefn()
+    # clip with the whole shapefile
+    if not stat:
+        return _clip(ds, outLayer, **kwargs)[0].GetDescription()
 
-    # output SpatialReference
-    outSpatialRef = read_srs([ds, PROJ])
-
-    coordTrans = coord_trans(inLayer, outSpatialRef)
-
-    # initial output
-    row = inLayer.GetFeatureCount()
-    col = ds.RasterCount
+    # initialize output for statistics
+    row, col = outLayer.GetFeatureCount(), ds.RasterCount
     stat = np.full((row, col), np.nan)
 
     for r in range(row):
-        inFeature = inLayer.GetFeature(r)
-        # create the output layer
-        outFile = '/vsimem/outline.shp'
-        if os.path.exists(outFile):
-            driver.DeleteDataSource(outFile)
-        outDataSet = driver.CreateDataSource(outFile)
-        outLayer = outDataSet.CreateLayer(outFile, outSpatialRef)
-
-        # add fields
-        for i in range(0, inLayerDefn.GetFieldCount()):
-            fieldDefn = inLayerDefn.GetFieldDefn(i)
-            outLayer.CreateField(fieldDefn)
-
-        # get the output layer's feature definition
-        outLayerDefn = outLayer.GetLayerDefn()
-
-        # get the input geometry
-        geom = inFeature.GetGeometryRef()
-        # reproject the geometry
-        geom.Transform(coordTrans)
-        # create a new feature
-        outFeature = ogr.Feature(outLayerDefn)
-        # set the geometry and attribute
-        outFeature.SetGeometry(geom)
-        for i in range(0, outLayerDefn.GetFieldCount()):
-            outFeature.SetField(outLayerDefn.GetFieldDefn(
-                i).GetNameRef(), inFeature.GetField(i))
-        # add the feature to the shapefile
-        outLayer.CreateFeature(outFeature)
-
-        if ds.GetRasterBand(1).GetNoDataValue() is not None:
-            no_data = ds.GetRasterBand(1).GetNoDataValue()
-        if no_data is None:
-            raise(ValueError("no_data must be initialed"))
-        rect = None
-        rect, burn_data = clip(ds, outLayer, no_data=no_data, **kwargs)
+        sin_shp = '/vsimem/_single.shp'
+        sinDataSet = ogr.Open(shp_geom_map(outLayer, sin_shp, idxs=r))
+        sinLayer = sinDataSet.GetLayer()
+        rect, burn_data = _clip(ds, sinLayer, **kwargs)
 
         # iterate all bands
         for c in range(1, col + 1):
@@ -207,119 +155,35 @@ def _extract_stat(ras, shp, PROJ=None, no_data=None, **kwargs):
     return stat
 
 
-def extract(ras, shp, PROJ=None, no_data=None, stat=False, **kwargs):
-    if stat:
-        return _extract_stat(ras, shp, PROJ=PROJ, no_data=no_data, **kwargs)
-
-    if isinstance(ras, str):
-        ds = gdal.Open(ras)
-    else:
-        ds = ras
-
-    out_shp = '/vsimem/outline.shp'
-    shp_projection(shp, out_shp, out_srs=read_srs([ds, PROJ]))
-    outDataSet = ogr.Open(out_shp)
-    outLayer = outDataSet.GetLayer()
-
-    # set no data
-    if ds.GetRasterBand(1).GetNoDataValue() is not None:
-        no_data = ds.GetRasterBand(1).GetNoDataValue()
-    if no_data is None:
-        raise(ValueError("no_data must be initialed"))
-
-    # clip with shapefile
-    rect, _ = clip(ds, outLayer, no_data=no_data, **kwargs)
-
-    return rect.GetDescription()
-
-
-def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
-    driver = ogr.GetDriverByName('ESRI Shapefile')
-
-    # get layer of in_shp
-    if isinstance(in_shp, str):
-        ds = ogr.Open(in_shp)
-    else:
-        ds = in_shp
-
-    in_layer = ds.GetLayer()
-    srs = in_layer.GetSpatialRef()
-
-    # project clip_shp
-    if save_cache:
-        proj_shp = rep_file('cache', os.path.splitext(
-            os.path.basename(clip_shp))[0] + '_proj.shp')
-    else:
-        proj_shp = '/vsimem/_proj.shp'
-    shp_projection(clip_shp, proj_shp, out_srs=srs)
-    clip_ds = ogr.Open(proj_shp)
-    clip_layer = clip_ds.GetLayer()
-
-    # export out_shp
-    if out_shp is None:
-        if save_cache:
-            out_shp = rep_file('cache', os.path.splitext(
-                os.path.basename(clip_shp))[0] + '_out.shp')
-        else:
-            out_shp = '/vsimem/_out.shp'
-
-    out_ds = driver.CreateDataSource(out_shp)
-    out_layer = out_ds.CreateLayer(out_shp, srs=srs)
-
-    in_layer.Clip(clip_layer, out_layer)
-
-    area = []
-    logK = []
-    # newField = ogr.FieldDefn('Area', ogr.OFTReal)
-    # out_layer.CreateField(newField)
-    c = out_layer.GetFeatureCount()
-    for i in range(c):
-        f = out_layer.GetFeature(i)
-        area.append(f.GetGeometryRef().GetArea())
-        logK.append(f.GetField(field))
-        # f.SetField('Area', f.GetGeometryRef().GetArea())
-        # out_layer.SetFeature(f)
-    area = np.array(area)
-    logK = np.array(logK)
-    mean_logK = np.average(logK, weights=area)
-    # mean_logK = np.log10(np.average(np.power(10, logK / 100), weights=area))
-    out_layer = None
-    out_ds = None
-    return mean_logK
-
-
-def basin_average_worker(shp, rasters, s, t, field, basin_id, ** kwargs):
-    filter_sql = f"{field} = '{basin_id}'"
+def basin_average_worker(shp, rasters, s, t, field, filter, **kwargs):
+    filter_sql = f"{field} = '{filter}'"
     filter_shp = shp_filter(shp, filter_sql)
     one_out = np.full(t[-1], np.nan)
     for i, ras in enumerate(rasters):
-        one_out[s[i]:t[i]] = np.squeeze(extract(ras, filter_shp, enlarge=10,
-                                        ext=basin_id, stat=True, **kwargs))
+        one_out[s[i]:t[i]] = np.squeeze(extract(ras, filter_shp, stat=True,
+                                        ext=filter, **kwargs))
     return one_out
 
 
-def basin_average(shp, rasters, basins_id=None, field='STAID', **kwargs):
+def basin_average(shp, rasters, field='STAID', filter=None, **kwargs):
     if isinstance(rasters, str):
         rasters = [rasters]
-    if basins_id is None:
+    if filter is None:
         ds = ogr.Open(shp)
         layer = ds.GetLayer()
-        basins_id = range(layer.GetFeatureCount())
+        filter = range(layer.GetFeatureCount())
         field = None
-    if isinstance(basins_id, str) or isinstance(basins_id, int):
-        basins_id = [basins_id]
+    if isinstance(filter, str) or isinstance(filter, int):
+        filter = [filter]
 
     n_bands = [gdal.Open(ras).RasterCount for ras in rasters]
     t = np.cumsum(n_bands)
     s = np.roll(t, 1)
     s[0] = 0
 
-    with Pool(min(cpu_count() * 3 // 4, len(basins_id))) as p:
+    with Pool(min(cpu_count() * 3 // 4, len(filter))) as p:
         output = p.map(partial(basin_average_worker, shp, rasters,
-                               s, t, field, ** kwargs), basins_id)
-    if kwargs.pop('save_cache', False):
-        if os.path.exists('cache'):
-            shutil.rmtree('cache')
+                               s, t, field, **kwargs), filter)
 
     names = np.zeros(t[-1], dtype='object')
     for i, ras in enumerate(rasters):
@@ -327,4 +191,4 @@ def basin_average(shp, rasters, basins_id=None, field='STAID', **kwargs):
         names[s[i]:t[i]] = np.core.defchararray.add(string, np.char.mod('%d', np.arange(n_bands[i])))
         names[s[i]] = string
 
-    return pd.DataFrame(output, columns=names, index=basins_id)
+    return pd.DataFrame(output, columns=names, index=filter)

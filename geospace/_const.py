@@ -1,6 +1,7 @@
 from osgeo import gdal
 
 # gdal config
+gdal.PushErrorHandler('CPLQuietErrorHandler')
 CREATION = ['BIGTIFF=YES', 'TILED=YES', 'NUM_THREADS=ALL_CPUS',
             'COMPRESS=ZSTD', 'PREDICTOR=1', 'ZSTD_LEVEL=1']
 

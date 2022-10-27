@@ -5,8 +5,21 @@ import requests
 import pandas as pd
 
 
+def connected_to_internet(url='http://www.google.com/', timeout=1):
+    try:
+        _ = requests.head(url, timeout=timeout)
+        return True
+    except requests.ConnectionError:
+        print("No internet connection available")
+    return False
+
+
 # gee initialization
-def gee_initial():
+def gee_initial(proxy='http://127.0.0.1:7890'):
+    if not connected_to_internet():
+        print("Set proxy to 127.0.0.1:7890")
+        os.environ['HTTP_PROXY'] = proxy
+        os.environ['HTTPS_PROXY'] = proxy
     try:
         ee.Initialize()
     except Exception:
@@ -109,7 +122,8 @@ def gee_export_tif(image, filename, crs=None, crs_transform=None, scale=None, re
     #     }).start()
 
 
-def gee_export_csv(fc, image, scale_enlarge=1, fields=['ORDER', '.*mean'], return_url=False):
+def gee_export_csv(fc, image, scale_enlarge=1, reducer=None,
+                   fields=['ORDER', '.*mean'], return_url=False):
     """export a csv containing the basin average value
 
     Args:
@@ -125,11 +139,11 @@ def gee_export_csv(fc, image, scale_enlarge=1, fields=['ORDER', '.*mean'], retur
     if image.projection().crs().getInfo() != 'EPSG:4326':
         image = image.reproject('EPSG:4326', None, scale)
 
-    means = image.reduceRegions(**{
-        'collection': fc,
-        'reducer': ee.Reducer.mean(),
-        'scale': scale,
-    })
+    reducer = ee.Reducer.mean() if reducer is None else reducer
+    means = image.reduceRegions(**{'collection': fc,
+                                   'reducer': reducer,
+                                   'scale': scale})
+
     url = means.select(fields, retainGeometry=False).getDownloadURL(filetype='csv')
     if return_url:
         return url

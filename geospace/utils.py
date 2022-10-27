@@ -92,7 +92,7 @@ def geo2imagexy(ds, x, y):
     a = np.array([[trans[1], trans[2]], [trans[4], trans[5]]])
     b = np.array([x - trans[0], y - trans[3]])
     col, row = np.linalg.solve(a, b) - 0.5
-    return int(round(col)), int(round(row))
+    return np.round(col).astype(int), np.round(row).astype(int)
 
 
 def imagexy2geo(dataset, row, col):
