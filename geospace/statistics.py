@@ -73,8 +73,8 @@ def _clip(ds, outLayer, rect_file=None, enlarge=10, save_cache=False,
         poly_ds = gdal.Open(poly_file, gdal.GA_Update)
 
         # Rasterize
-        gdal.RasterizeLayer(poly_ds, [1], outLayer, burn_values=[
-                            1], options=rasterize_option)
+        gdal.RasterizeLayer(poly_ds, [1], outLayer, burn_values=[1],
+                            options=rasterize_option)
         poly_ds = None
         option = gdal.WarpOptions(multithread=True,
                                   creationOptions=CREATION, dstNodata=0,
@@ -127,30 +127,24 @@ def extract(ras, shp, ras_srs="+proj=longlat +datum=WGS84 +ellps=WGS84",
         raise (ValueError("no_data must be initialized"))
 
     # clip with the whole shapefile
+    rect, burn_data = _clip(ds, outLayer, **kwargs)
     if not stat:
-        return _clip(ds, outLayer, **kwargs)[0].GetDescription()
+        return rect.GetDescription()
 
     # initialize output for statistics
-    row, col = outLayer.GetFeatureCount(), ds.RasterCount
-    stat = np.full((row, col), np.nan)
+    stat = np.full(ds.RasterCount, np.nan)
 
-    for r in range(row):
-        sin_shp = '/vsimem/_single.shp'
-        sinDataSet = ogr.Open(shp_geom_map(outLayer, sin_shp, idxs=r))
-        sinLayer = sinDataSet.GetLayer()
-        rect, burn_data = _clip(ds, sinLayer, **kwargs)
-
-        # iterate all bands
-        for c in range(1, col + 1):
-            rect_band = rect.GetRasterBand(c)
-            rect_data = rect_band.ReadAsArray()
-            no_data = rect_band.GetNoDataValue()
-            select = (rect_data != no_data)
-            try:
-                stat[r, c - 1] = np.average(rect_data[select],
-                                            weights=burn_data[select])
-            except ZeroDivisionError:
-                pass
+    # iterate all bands
+    for c in range(1, ds.RasterCount + 1):
+        rect_band = rect.GetRasterBand(c)
+        rect_data = rect_band.ReadAsArray()
+        no_data = rect_band.GetNoDataValue()
+        select = (rect_data != no_data)
+        try:
+            stat[c - 1] = np.average(rect_data[select],
+                                     weights=burn_data[select])
+        except ZeroDivisionError:
+            pass
 
     return stat
 
@@ -160,8 +154,8 @@ def basin_average_worker(shp, rasters, s, t, field, filter, **kwargs):
     filter_shp = shp_filter(shp, filter_sql)
     one_out = np.full(t[-1], np.nan)
     for i, ras in enumerate(rasters):
-        one_out[s[i]:t[i]] = np.squeeze(extract(ras, filter_shp, stat=True,
-                                        ext=filter, **kwargs))
+        one_out[s[i]:t[i]] = extract(ras, filter_shp, stat=True,
+                                     ext=filter, **kwargs)
     return one_out
 
 
