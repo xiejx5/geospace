@@ -8,7 +8,7 @@ from geospace._const import CREATION
 from geospace.projection import read_srs, coord_trans
 
 
-def block_write(datasets, map_fun, *map_args, **map_kwargs):
+def block_write(datasets, map_fun, *args, **kwargs):
     if not isinstance(datasets, Iterable):
         datasets = [datasets]
     datasets = [ds_name(ds)[0] for ds in datasets]
@@ -24,7 +24,7 @@ def block_write(datasets, map_fun, *map_args, **map_kwargs):
             arr = d.ReadAsArray()
             mask = arr == d.GetRasterBand(1).GetNoDataValue(),
             arrs.append(np.ma.masked_array(arr, mask=mask, fill_value=no_data))
-        arr = map_fun(arrs, *map_args, **map_kwargs)
+        arr = map_fun(arrs, *args, **kwargs)
         ds.WriteArray(arr)
         del arr, arrs, mask
     else:
@@ -43,9 +43,13 @@ def block_write(datasets, map_fun, *map_args, **map_kwargs):
                                         xsize=win_xsize, ysize=win_ysize)
                     mask = arr == d.GetRasterBand(1).GetNoDataValue(),
                     arrs.append(np.ma.masked_array(arr, mask=mask, fill_value=no_data))
-                arr = map_fun(arrs, *map_args, **map_kwargs)
+                part_args = (a[yoff:yoff + win_ysize,
+                               xoff:xoff + win_xsize] for a in args)
+                part_kwargs = {k: v[yoff:yoff + win_ysize,
+                                    xoff:xoff + win_xsize] for k, v in kwargs.items()}
+                arr = map_fun(arrs, *part_args, **part_kwargs)
                 ds.WriteArray(arr, xoff=xoff, yoff=yoff)
-                del arr, arrs, mask
+                del arr, arrs, mask, part_args, part_kwargs
 
 
 def rep_file(cache_dir, filename):
