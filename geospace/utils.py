@@ -67,6 +67,21 @@ def rep_file(cache_dir, filename):
     return file_path
 
 
+def rep_name(rasters):
+    n_bands = [gdal.Open(ras).RasterCount for ras in rasters]
+    t = np.cumsum(n_bands)
+    s = np.roll(t, 1)
+    s[0] = 0
+
+    names = np.zeros(t[-1], dtype='object')
+    for i, ras in enumerate(rasters):
+        string = os.path.splitext(os.path.basename(ras))[0]
+        names[s[i]:t[i]] = np.core.defchararray.add(string, np.char.mod('%d', np.arange(n_bands[i])))
+        names[s[i]] = string
+
+    return names, s, t
+
+
 def geo2imagexy(ds, x, y):
     trans = ds.GetGeoTransform()
     a = np.array([[trans[1], trans[2]], [trans[4], trans[5]]])

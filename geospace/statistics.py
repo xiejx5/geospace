@@ -9,7 +9,7 @@ from geospace.spatial_calc import real_area
 from geospace.raster import tif_copy_assign
 from geospace.boundary import _enlarge_bound
 from geospace.shape import shp_projection, shp_filter
-from geospace.utils import zeros_tif, block_write, ds_name
+from geospace.utils import zeros_tif, block_write, ds_name, rep_name
 
 try:
     import pandas as pd
@@ -126,16 +126,11 @@ def extract(ras, shp, ras_srs="+proj=longlat +datum=WGS84 +ellps=WGS84",
     rect_data = rect.ReadAsArray()
     mask = rect_data == no_data
     arr = np.ma.masked_array(rect_data, mask)
+    arr = arr[np.newaxis, :, :] if arr.ndim != 3 else arr
 
-    try:
-        if arr.ndim > 2:
-            return np.ma.average(arr.reshape(arr.shape[0], -1),
-                                 weights=burn_data.ravel(),
-                                 axis=1).filled(np.nan)
-        else:
-            return np.ma.average(arr, weights=burn_data)
-    except ZeroDivisionError:
-        return
+    return np.ma.average(arr.reshape(arr.shape[0], -1),
+                         weights=burn_data.ravel(),
+                         axis=1).filled(np.nan)
 
 
 def basin_average_worker(shp, rasters, s, t, field, filter, **kwargs):
@@ -159,19 +154,10 @@ def basin_average(shp, rasters, field='STAID', filter=None, **kwargs):
     if isinstance(filter, str) or isinstance(filter, int):
         filter = [filter]
 
-    n_bands = [gdal.Open(ras).RasterCount for ras in rasters]
-    t = np.cumsum(n_bands)
-    s = np.roll(t, 1)
-    s[0] = 0
+    names, s, t = rep_name(rasters)
 
     with Pool(min(cpu_count() * 3 // 4, len(filter))) as p:
         output = p.map(partial(basin_average_worker, shp, rasters,
                                s, t, field, **kwargs), filter)
-
-    names = np.zeros(t[-1], dtype='object')
-    for i, ras in enumerate(rasters):
-        string = os.path.splitext(os.path.basename(ras))[0]
-        names[s[i]:t[i]] = np.core.defchararray.add(string, np.char.mod('%d', np.arange(n_bands[i])))
-        names[s[i]] = string
 
     return pd.DataFrame(output, columns=names, index=filter)

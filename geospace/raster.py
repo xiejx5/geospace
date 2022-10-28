@@ -1,8 +1,9 @@
 import os
 import numpy as np
 from osgeo import gdal
-from geospace._const import CREATION, TYPE_MAP
+from pathlib import Path
 from geospace.projection import read_srs
+from geospace._const import CREATION, TYPE_MAP
 from geospace.utils import rep_file, ds_name, context_file
 
 
@@ -67,7 +68,13 @@ def mosaic(ras_paths, out_path, **kwargs):
                               creationOptions=CREATION,
                               resampleAlg=resample_alg,
                               **kwargs)
-    gdal.Warp(out_file, ds, options=option)
+    ds_out = gdal.Warp(out_file, ds, options=option)
+
+    if separate:
+        # each raster only have one band in the mosaic
+        band_names = (Path(p).stem for p in ras_paths)
+        [ds_out.GetRasterBand(i + 1).SetDescription(band_name)
+         for i, band_name in enumerate(band_names)]
 
     return out_file
 
