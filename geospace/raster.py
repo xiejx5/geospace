@@ -1,13 +1,9 @@
 import os
 import numpy as np
-from osgeo import gdal, osr, ogr
+from osgeo import gdal
 from geospace._const import CREATION, TYPE_MAP
 from geospace.projection import read_srs
-from geospace.utils import block_write, rep_file, ds_name, context_file
-
-
-def _map_no_data(in_data):
-    return in_data.filled()
+from geospace.utils import rep_file, ds_name, context_file
 
 
 def convert_uint8(ds, in_no_data=None, out_no_data=255):
@@ -21,24 +17,17 @@ def convert_uint8(ds, in_no_data=None, out_no_data=255):
     if frist_band.GetNoDataValue() is not None:
         in_no_data = frist_band.GetNoDataValue()
     if in_no_data is None:
-        raise(ValueError("in_no_data must be initialed"))
+        raise (ValueError("in_no_data must be initialed"))
 
     option = gdal.WarpOptions(multithread=True,
                               creationOptions=CREATION,
+                              srcNodata=in_no_data,
+                              dstNodata=out_no_data,
                               outputType=gdal.GDT_Byte)
     out_file = rep_file(os.path.dirname(ras), ras)
-    ds_out = gdal.Warp(out_file, ras, options=option)
-
-    for i in range(1, 1 + ds.RasterCount):
-        band = ds.GetRasterBand(i)
-        band_out = ds_out.GetRasterBand(i)
-        if band.GetNoDataValue() is None:
-            band.SetNoDataValue(in_no_data)
-        band_out.SetNoDataValue(out_no_data)
-        block_write(ds, band, band_out, _map_no_data)
+    gdal.Warp(out_file, ras, options=option)
 
     ds = None
-    ds_out = None
     gdal.GetDriverByName('GTiff').Delete(ras)
     os.rename(out_file, ras)
 
@@ -142,14 +131,14 @@ def tif_copy_assign(out_file, ds_eg, array, srs=None, no_data=None):
     if array.ndim == 2:
         array = array.reshape([1, *array.shape])
     if array.ndim != 3:
-        raise(Exception('array must be 2 dims or 3 dims'))
+        raise (Exception('array dims must be 2 or 3'))
 
     # set nodata value
     if no_data is None:
         if ds_eg.GetRasterBand(1).GetNoDataValue() is not None:
             no_data = ds_eg.GetRasterBand(1).GetNoDataValue()
         else:
-            raise(Exception('nodata must be passed'))
+            raise (Exception('nodata must be passed'))
     if isinstance(array, np.ma.core.MaskedArray):
         array.set_fill_value(no_data)
         array = array.filled()
@@ -159,10 +148,9 @@ def tif_copy_assign(out_file, ds_eg, array, srs=None, no_data=None):
         TYPE_MAP[array.dtype.name], CREATION)
 
     # fill with array
-    for i in range(1, 1 + ds.RasterCount):
-        band = ds.GetRasterBand(i)
-        band.SetNoDataValue(no_data)
-        band.WriteArray(array[i - 1])
+    band = ds.GetRasterBand(1)
+    band.SetNoDataValue(no_data)
+    ds.WriteArray(array)
 
     # set geotransform
     trans = ds_eg.GetGeoTransform()

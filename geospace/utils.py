@@ -1,5 +1,6 @@
 import os
 import json
+import psutil
 import numpy as np
 from osgeo import gdal
 from collections.abc import Iterable
@@ -7,69 +8,44 @@ from geospace._const import CREATION
 from geospace.projection import read_srs, coord_trans
 
 
-def block_write(in_ds, in_bands, out_band, map_fun,
-                map_args=None, map_kwargs=None):
-    if isinstance(in_bands, Iterable):
-        _block_write_multi(in_ds, in_bands, out_band, map_fun,
-                           map_args=map_args, map_kwargs=map_kwargs)
+def block_write(datasets, map_fun, *map_args, **map_kwargs):
+    if not isinstance(datasets, Iterable):
+        datasets = [datasets]
+    datasets = [ds_name(ds)[0] for ds in datasets]
+    ds = datasets[0]
+    n_x, n_y, band = ds.RasterXSize, ds.RasterYSize, ds.GetRasterBand(1)
+    no_data = band.GetNoDataValue()
+    ratio = int(n_y * n_x * ds.RasterCount * len(datasets) /
+                (psutil.virtual_memory().available * 0.5 /
+                 (2 + ds.ReadAsArray(0, 0, 1, 1).dtype.itemsize)) + 1)
+    if ratio == 1:
+        arrs = []
+        for d in datasets:
+            arr = d.ReadAsArray()
+            mask = arr == d.GetRasterBand(1).GetNoDataValue(),
+            arrs.append(np.ma.masked_array(arr, mask=mask, fill_value=no_data))
+        arr = map_fun(arrs, *map_args, **map_kwargs)
+        ds.WriteArray(arr)
+        del arr, arrs, mask
     else:
-        _block_write_one(in_ds, in_bands, out_band, map_fun,
-                         map_args=map_args, map_kwargs=map_kwargs)
+        b_xsize, b_ysize = band.GetBlockSize()
+        xsize = max(n_x // ratio + 1, b_xsize)
+        ysize = max(n_y // ratio + 1, b_ysize)
+        xoffs, yoffs = range(0, n_x, xsize), range(0, n_y, ysize)
+        for xoff in xoffs:
+            for yoff in yoffs:
+                win_xsize = min(xsize, n_x - xoff)
+                win_ysize = min(ysize, n_y - yoff)
 
-
-def _block_write_one(in_ds, in_band, out_band, map_fun,
-                     map_args=None, map_kwargs=None):
-    block_xsize, block_ysize = in_band.GetBlockSize()
-    for b_y, yoff in enumerate(range(0, in_ds.RasterYSize, block_ysize)):
-        for b_x, xoff in enumerate(range(0, in_ds.RasterXSize, block_xsize)):
-            win_xsize, win_ysize = in_band.GetActualBlockSize(b_x, b_y)
-
-            in_data = in_band.ReadAsArray(
-                xoff=xoff, yoff=yoff, win_xsize=win_xsize, win_ysize=win_ysize)
-            in_data = np.ma.masked_array(in_data,
-                                         mask=in_data == in_band.GetNoDataValue(),
-                                         fill_value=out_band.GetNoDataValue())
-
-            if map_args and map_kwargs:
-                out_data = map_fun(in_data, *map_args, **map_kwargs)
-            elif map_args:
-                out_data = map_fun(in_data, *map_args)
-            elif map_kwargs:
-                out_data = map_fun(in_data, **map_kwargs)
-            else:
-                out_data = map_fun(in_data)
-
-            out_band.WriteArray(out_data, xoff=xoff, yoff=yoff)
-
-
-def _block_write_multi(in_ds, in_bands, out_band, map_fun,
-                       map_args=None, map_kwargs=None):
-    first_band = in_bands[0]
-    block_xsize, block_ysize = first_band.GetBlockSize()
-    for b_y, yoff in enumerate(range(0, in_ds.RasterYSize, block_ysize)):
-        for b_x, xoff in enumerate(range(0, in_ds.RasterXSize, block_xsize)):
-            win_xsize, win_ysize = first_band.GetActualBlockSize(b_x, b_y)
-            no_data = out_band.GetNoDataValue()
-
-            in_datas = []
-            for in_band in in_bands:
-                in_data = in_band.ReadAsArray(
-                    xoff=xoff, yoff=yoff, win_xsize=win_xsize, win_ysize=win_ysize)
-                in_data = np.ma.masked_array(in_data,
-                                             mask=in_data == in_band.GetNoDataValue(),
-                                             fill_value=no_data)
-                in_datas.append(in_data)
-
-            if map_args and map_kwargs:
-                out_data = map_fun(in_datas, *map_args, **map_kwargs)
-            elif map_args:
-                out_data = map_fun(in_datas, *map_args)
-            elif map_kwargs:
-                out_data = map_fun(in_datas, **map_kwargs)
-            else:
-                out_data = map_fun(in_datas)
-
-            out_band.WriteArray(out_data, xoff=xoff, yoff=yoff)
+                arrs = []
+                for d in datasets:
+                    arr = d.ReadAsArray(xoff=xoff, yoff=yoff,
+                                        xsize=win_xsize, ysize=win_ysize)
+                    mask = arr == d.GetRasterBand(1).GetNoDataValue(),
+                    arrs.append(np.ma.masked_array(arr, mask=mask, fill_value=no_data))
+                arr = map_fun(arrs, *map_args, **map_kwargs)
+                ds.WriteArray(arr, xoff=xoff, yoff=yoff)
+                del arr, arrs, mask
 
 
 def rep_file(cache_dir, filename):

@@ -64,13 +64,13 @@ def _enlarge_bound(ds, x_min, y_min, x_max, y_max):
     bound = [min(ul_lon, lr_lon), min(ul_lat, lr_lat),
              max(ul_lon, lr_lon), max(ul_lat, lr_lat)]
 
-    return bound, clip_range
+    return bound
 
 
 def bound_raster(ds, bound, bound_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
     ds, _ = ds_name(ds)
     x_min, y_min, x_max, y_max = _prj_bound(ds, bound, bound_srs)
-    bound = _enlarge_bound(ds, x_min, y_min, x_max, y_max)[0]
+    bound = _enlarge_bound(ds, x_min, y_min, x_max, y_max)
 
     return bound, read_srs(ds).ExportToProj4()
 
