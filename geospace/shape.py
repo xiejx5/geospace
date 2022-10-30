@@ -1,7 +1,8 @@
 import os
 import re
 import numpy as np
-from osgeo import gdal, ogr
+from osgeo import ogr
+from geospace._const import WGS84
 from geospace.utils import rep_file
 from geospace.projection import read_srs, coord_trans
 
@@ -11,10 +12,7 @@ def shp_buffer(in_shp, out_shp, buffdist, in_srs=None):
                         func=lambda geom: geom.Buffer(float(buffdist)))
 
 
-def shp_projection(in_shp, out_shp, in_srs=None,
-                   out_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
-    gdal.SetConfigOption("SHAPE_ENCODING", 'utf-8')
-
+def shp_projection(in_shp, out_shp, in_srs=WGS84, out_srs=WGS84):
     # Filename of input OGR file
     if isinstance(in_shp, ogr.Layer):
         inLayer = in_shp
@@ -58,8 +56,6 @@ def shp_filter(shps, filter_sql, filter_shp=None):
 
 def shp_geom_map(in_shp, out_shp, idxs=None, func=None,
                  in_srs=None, out_srs=None):
-    gdal.SetConfigOption("SHAPE_ENCODING", 'utf-8')
-
     # Filename of input OGR file
     driver = ogr.GetDriverByName("ESRI Shapefile")
     if isinstance(in_shp, ogr.Layer):

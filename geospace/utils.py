@@ -4,7 +4,7 @@ import psutil
 import numpy as np
 from osgeo import gdal
 from collections.abc import Iterable
-from geospace._const import CREATION
+from geospace._const import WGS84, CREATION
 from geospace.projection import read_srs, coord_trans
 
 
@@ -100,7 +100,7 @@ def imagexy2geo(dataset, row, col):
     return px, py
 
 
-def meshgrid(ds, geo_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
+def meshgrid(ds, geo_srs=WGS84):
     ds, _ = ds_name(ds)
     col, row = np.meshgrid(np.arange(ds.RasterXSize), np.arange(ds.RasterYSize))
     x, y = imagexy2geo(ds, row, col)

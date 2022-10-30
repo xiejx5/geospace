@@ -1,7 +1,13 @@
 from osgeo import gdal
 
 # gdal config
+gdal.SetConfigOption("SHAPE_ENCODING", 'utf-8')
 gdal.PushErrorHandler('CPLQuietErrorHandler')
+
+# default spatial reference system
+WGS84 = "+proj=longlat +datum=WGS84 +ellps=WGS84"
+
+# creation options
 CREATION = ['BIGTIFF=YES', 'TILED=YES', 'NUM_THREADS=ALL_CPUS',
             'COMPRESS=ZSTD', 'PREDICTOR=1', 'ZSTD_LEVEL=1']
 

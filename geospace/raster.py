@@ -3,7 +3,7 @@ import numpy as np
 from osgeo import gdal
 from pathlib import Path
 from geospace.projection import read_srs
-from geospace._const import CREATION, TYPE_MAP
+from geospace._const import WGS84, CREATION, TYPE_MAP
 from geospace.utils import rep_file, ds_name, context_file
 
 
@@ -91,7 +91,7 @@ def project_raster(ds, out_path, **kwargs):
     inSpatialRef = read_srs([ds, in_srs])
 
     # output SpatialReference
-    out_srs = kwargs.pop('dstSRS', "+proj=longlat +datum=WGS84 +ellps=WGS84")
+    out_srs = kwargs.pop('dstSRS', WGS84)
     outSpatialRef = read_srs(out_srs)
 
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
@@ -120,7 +120,7 @@ def grib_to_tif(ds, out_path=None, **kwargs):
     if os.path.exists(out_file):
         return out_file
 
-    srs = kwargs.pop('dstSRS', "+proj=longlat +datum=WGS84 +ellps=WGS84")
+    srs = kwargs.pop('dstSRS', WGS84)
     option = gdal.WarpOptions(multithread=True,
                               dstSRS=read_srs(srs),
                               creationOptions=CREATION,

@@ -1,5 +1,6 @@
 import numpy as np
 from osgeo import ogr
+from geospace._const import WGS84
 from geospace.utils import geo2imagexy, ds_name
 from geospace.projection import read_srs, coord_trans
 
@@ -67,7 +68,7 @@ def _enlarge_bound(ds, x_min, y_min, x_max, y_max):
     return bound
 
 
-def bound_raster(ds, bound, bound_srs="+proj=longlat +datum=WGS84 +ellps=WGS84"):
+def bound_raster(ds, bound, bound_srs=WGS84):
     ds, _ = ds_name(ds)
     x_min, y_min, x_max, y_max = _prj_bound(ds, bound, bound_srs)
     bound = _enlarge_bound(ds, x_min, y_min, x_max, y_max)

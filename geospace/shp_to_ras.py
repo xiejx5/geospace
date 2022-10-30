@@ -1,9 +1,9 @@
 import os
 import numpy as np
 from osgeo import gdal, ogr
-from geospace._const import CREATION
 from geospace.projection import read_srs
 from geospace.shape import shp_projection
+from geospace._const import WGS84, CREATION
 from geospace.utils import imagexy2geo, ds_name
 
 
@@ -60,7 +60,7 @@ def download_tiles(shp, tile_pixel):
     target_ds = gdal.GetDriverByName('GTiff').Create(
         '/vsimem/_tile.tif', x_res, y_res, 1, gdal.GDT_Byte)
     target_ds.SetGeoTransform((-180, tile_pixel, 0, 90, 0, -tile_pixel))
-    target_ds.SetSpatialRef(read_srs('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs'))
+    target_ds.SetSpatialRef(read_srs(WGS84))
     band = target_ds.GetRasterBand(1)
     band.SetNoDataValue(0)
 

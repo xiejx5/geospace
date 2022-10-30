@@ -2,14 +2,15 @@ import os
 import numpy as np
 from osgeo import gdal, ogr
 from functools import partial
-from geospace._const import CREATION
+from geospace._const import WGS84, CREATION
 from multiprocessing import Pool, cpu_count
 from geospace.projection import read_srs
 from geospace.spatial_calc import real_area
 from geospace.raster import tif_copy_assign
 from geospace.boundary import _enlarge_bound
 from geospace.shape import shp_projection, shp_filter
-from geospace.utils import zeros_tif, block_write, ds_name, rep_name
+from geospace.utils import (zeros_tif, block_write,
+                            context_file, ds_name, rep_name)
 
 try:
     import pandas as pd
@@ -25,8 +26,8 @@ def _map_burn(arrs, burn_data):
     return rect_data.filled()
 
 
-def _clip(ds, outLayer, rect_file=None, enlarge=10, save_cache=False,
-          reuse_cache=False, ext='', rasterize_option=['ALL_TOUCHED=TRUE']):
+def _clip(ds, outLayer, out_file, enlarge=10, ext='', save_cache=False,
+          reuse_cache=False, rasterize_option=['ALL_TOUCHED=TRUE']):
     # get no data
     no_data = ds.GetRasterBand(1).GetNoDataValue()
 
@@ -35,15 +36,13 @@ def _clip(ds, outLayer, rect_file=None, enlarge=10, save_cache=False,
     x_min, x_max, y_min, y_max = outLayer.GetExtent()
     bound = _enlarge_bound(ds, x_min, y_min, x_max, y_max)
 
-    # clip with rectangle, generate rect_file
-    if rect_file is None:
-        rect_file = '/vsimem/_rect.tif'
+    # clip with rectangle, generate out_file
     option = gdal.WarpOptions(multithread=True, outputBounds=bound,
                               dstSRS=outLayer.GetSpatialRef(),
                               creationOptions=CREATION, dstNodata=no_data,
                               xRes=t[1], yRes=t[5], srcNodata=no_data,
                               resampleAlg=gdal.GRA_NearestNeighbour)
-    rect = gdal.Warp(rect_file, ds, options=option)
+    rect = gdal.Warp(out_file, ds, options=option)
     x_size, y_size = rect.RasterXSize, rect.RasterYSize
 
     # paths of cached poly.tif and burn.tif
@@ -78,11 +77,14 @@ def _clip(ds, outLayer, rect_file=None, enlarge=10, save_cache=False,
         poly_data = poly_ds.ReadAsArray()
 
         # https://towardsdatascience.com/efficiently-splitting-an-image-into-tiles-in-python-using-numpy-d1bf0dd7b6f7
-        burn_data = poly_data.reshape(y_size, enlarge,
-                                      x_size, enlarge).swapaxes(1, 2)
-        burn_data = burn_data.mean(axis=(-2, -1), dtype=np.float32)
-        row_area = real_area(rect, np.arange(y_size), return_row_area=True)
-        burn_data = burn_data * row_area.reshape([y_size, -1])
+        if enlarge == 1:
+            burn_data = poly_data
+        else:
+            burn_data = poly_data.reshape(y_size, enlarge,
+                                          x_size, enlarge).swapaxes(1, 2)
+            burn_data = burn_data.mean(axis=(-2, -1), dtype=np.float32)
+            row_area = real_area(rect, np.arange(y_size), return_row_area=True)
+            burn_data = burn_data * row_area.reshape([y_size, -1])
 
         # calculate shapefile intersection area in each grid
         if reuse_cache:
@@ -94,9 +96,16 @@ def _clip(ds, outLayer, rect_file=None, enlarge=10, save_cache=False,
     return rect, burn_data
 
 
-def extract(ras, shp, ras_srs="+proj=longlat +datum=WGS84 +ellps=WGS84",
-            no_data=None, stat=False, **kwargs):
-    ds, _ = ds_name(ras)
+def extract(ras, shp, out_path=None,
+            ras_srs=WGS84, no_data=None, **kwargs):
+    ds, ras = ds_name(ras)
+    if out_path is None:
+        out_file = '/vsimem/_rect.tif'
+    else:
+        out_file = context_file(ds.GetDescription(), out_path)
+        if os.path.exists(out_file):
+            return out_file
+        kwargs['enlarge'] = 1
 
     # set projection
     SpatialRef = read_srs([ds, ras_srs])
@@ -115,12 +124,9 @@ def extract(ras, shp, ras_srs="+proj=longlat +datum=WGS84 +ellps=WGS84",
         raise (ValueError("no_data must be initialized"))
 
     # clip with the whole shapefile
-    rect, burn_data = _clip(ds, outLayer, **kwargs)
-    if not stat:
+    rect, burn_data = _clip(ds, outLayer, out_file, **kwargs)
+    if out_path is not None:
         return rect.GetDescription()
-
-    # initialize output for statistics
-    stat = np.full(ds.RasterCount, np.nan)
 
     # iterate all bands
     rect_data = rect.ReadAsArray()
@@ -138,7 +144,7 @@ def basin_average_worker(shp, rasters, s, t, field, filter, **kwargs):
     filter_shp = shp_filter(shp, filter_sql)
     one_out = np.full(t[-1], np.nan)
     for i, ras in enumerate(rasters):
-        one_out[s[i]:t[i]] = extract(ras, filter_shp, stat=True,
+        one_out[s[i]:t[i]] = extract(ras, filter_shp,
                                      ext=filter, **kwargs)
     return one_out
 
