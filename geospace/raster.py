@@ -120,9 +120,11 @@ def grib_to_tif(ds, out_path=None, **kwargs):
     if os.path.exists(out_file):
         return out_file
 
-    srs = kwargs.pop('dstSRS', WGS84)
+    srsSRS = read_srs([ds, kwargs.pop('srsSRS', WGS84)])
+    dstSRS = kwargs.pop('dstSRS', WGS84)
     option = gdal.WarpOptions(multithread=True,
-                              dstSRS=read_srs(srs),
+                              srcSRS=srsSRS,
+                              dstSRS=dstSRS,
                               creationOptions=CREATION,
                               **kwargs)
     gdal.Warp(out_file, ds, options=option)

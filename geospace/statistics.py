@@ -36,8 +36,10 @@ def _clip(ds, outLayer, out_file, enlarge=10, ext='', save_cache=False,
     x_min, x_max, y_min, y_max = outLayer.GetExtent()
     bound = _enlarge_bound(ds, x_min, y_min, x_max, y_max)
 
-    # clip with rectangle, generate out_file
+    # clip with rectangle out_file, use Warp instead of Translate
+    # to project longitude from (0, 360) to (-180, 180)
     option = gdal.WarpOptions(multithread=True, outputBounds=bound,
+                              srcSRS=outLayer.GetSpatialRef(),
                               dstSRS=outLayer.GetSpatialRef(),
                               creationOptions=CREATION, dstNodata=no_data,
                               xRes=t[1], yRes=t[5], srcNodata=no_data,
@@ -108,10 +110,8 @@ def extract(ras, shp, out_path=None,
         kwargs['enlarge'] = 1
 
     # set projection
-    SpatialRef = read_srs([ds, ras_srs])
-    ds.SetProjection(SpatialRef.ExportToWkt())
     out_shp = '/vsimem/_outline.shp'
-    shp_projection(shp, out_shp, out_srs=SpatialRef)
+    shp_projection(shp, out_shp, out_srs=read_srs([ds, ras_srs]))
     outDataSet = ogr.Open(out_shp)
     outLayer = outDataSet.GetLayer()
 
