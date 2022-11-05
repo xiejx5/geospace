@@ -1,9 +1,9 @@
 import os
 import numpy as np
+from pathlib import Path
 from osgeo import gdal, ogr
 from functools import partial
 from multiprocessing import Pool
-from collections.abc import Iterable
 from geospace.projection import read_srs
 from geospace.boundary import _enlarge_bound
 from geospace.spatial_calc import area_per_row
@@ -185,10 +185,10 @@ def basin_average_worker(rasters, shp, s, t, field, filter, **kwargs):
 
 
 def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
-    if (not isinstance(rasters, str)) and isinstance(rasters, Iterable):
-        rasters = [str(ras) for ras in rasters]
-    else:
+    if isinstance(rasters, (str, Path)):
         rasters = [str(rasters)]
+    else:
+        rasters = [str(ras) for ras in rasters]
 
     if filter is None:
         ds = ogr.Open(shp)
