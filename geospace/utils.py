@@ -118,7 +118,7 @@ def meshgrid(ds, geo_srs=WGS84):
 def context_file(ras, out_path):
     ext = os.path.splitext(os.path.basename(out_path))[1]
     if ext != '.tif':
-        if not os.path.isdir(out_path):
+        if (not os.path.isdir(out_path)) and ('/vsimem' not in out_path):
             os.makedirs(out_path)
         out_file = os.path.join(out_path, os.path.splitext(
             os.path.basename(ras))[0] + '.tif')
@@ -129,11 +129,11 @@ def context_file(ras, out_path):
 
 
 def ds_name(ds):
-    if isinstance(ds, str):
-        ras = ds
-        ds = gdal.Open(ras)
-    else:
+    if isinstance(ds, gdal.Dataset):
         ras = ds.GetDescription()
+    else:
+        ras = ds
+        ds = gdal.Open(str(ras))
 
     return ds, ras
 
