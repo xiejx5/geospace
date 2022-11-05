@@ -1,11 +1,11 @@
 import os
 import numpy as np
-from geospace.gdal_calc import Calc
-from geospace._const import CREATION
-from geospace.raster import mosaic
-from geospace.utils import ds_name, context_file
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool
 from collections.abc import Iterable
+from geospace.raster import mosaic
+from geospace.gdal_calc import Calc
+from geospace._const import CREATION, N_CPU
+from geospace.utils import ds_name, context_file
 
 
 def band_map(i, ras_multi, band_idx_multi, calc_arg, out_file):
@@ -113,7 +113,7 @@ def map_calc(ds_multi, calc_args, out_path, band_idxs=None, multiprocess=True):
                calc_args, [out_file] * n)
 
     if multiprocess:
-        with Pool(min(cpu_count() - 1, n)) as p:
+        with Pool(min(N_CPU, n)) as p:
             tem_files = p.starmap(band_map, args)
     else:
         tem_files = []

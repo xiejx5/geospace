@@ -66,6 +66,16 @@ def ds_name(ds):
     return ds, ras
 
 
+def area_per_row(trans, proj_wkt, n_rows, offset=0):
+    if 'PROJCS' in proj_wkt:
+        cell_area = abs(trans[1] * trans[5]) / 1000000
+        return np.full(n_rows, cell_area)
+
+    return grid_area(abs(trans[1]), abs(trans[5]),
+                     trans[3] + offset * trans[5],
+                     n_rows) / 1000000
+
+
 def real_area(ds, rows, offset=None, return_row_area=False):
     ds = ds_name(ds)[0]
     trans = ds.GetGeoTransform()

@@ -1,8 +1,12 @@
 from osgeo import gdal
+from multiprocessing import cpu_count
 
 # gdal config
 gdal.SetConfigOption("SHAPE_ENCODING", 'utf-8')
 gdal.PushErrorHandler('CPLQuietErrorHandler')
+
+# cpu used
+N_CPU = max(cpu_count() - 1, 1)
 
 # default spatial reference system
 WGS84 = "+proj=longlat +datum=WGS84 +ellps=WGS84"

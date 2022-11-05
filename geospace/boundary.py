@@ -54,24 +54,28 @@ def _enlarge_bound(ds, x_min, y_min, x_max, y_max):
     t = ds.GetGeoTransform()
     ulX, ulY = geo2imagexy(ds, x_min, y_min)
     lrX, lrY = geo2imagexy(ds, x_max, y_max)
-    clip_range = [min(ulX, lrX), min(ulY, lrY),
-                  abs(ulX - lrX) + 1, abs(ulY - lrY) + 1]
+    clip_range = [np.min([ulX, lrX], axis=0),
+                  np.min([ulY, lrY], axis=0),
+                  (np.abs(ulX - lrX) + 1),
+                  (np.abs(ulY - lrY) + 1)]
     ul_lon = t[0] + t[1] * clip_range[0] + t[2] * clip_range[1]
     ul_lat = t[3] + t[4] * clip_range[0] + t[5] * clip_range[1]
     lr_lon = t[0] + t[1] * (clip_range[0] + clip_range[2]) + \
         t[2] * (clip_range[1] + clip_range[3])
     lr_lat = t[3] + t[4] * (clip_range[0] + clip_range[2]) + \
         t[5] * (clip_range[1] + clip_range[3])
-    bound = [min(ul_lon, lr_lon), min(ul_lat, lr_lat),
-             max(ul_lon, lr_lon), max(ul_lat, lr_lat)]
+    bound = [np.min([ul_lon, lr_lon], axis=0),
+             np.min([ul_lat, lr_lat], axis=0),
+             np.max([ul_lon, lr_lon], axis=0),
+             np.max([ul_lat, lr_lat], axis=0)]
 
-    return bound
+    return bound, clip_range
 
 
 def bound_raster(ds, bound, bound_srs=WGS84):
     ds, _ = ds_name(ds)
     x_min, y_min, x_max, y_max = _prj_bound(ds, bound, bound_srs)
-    bound = _enlarge_bound(ds, x_min, y_min, x_max, y_max)
+    bound = _enlarge_bound(ds, x_min, y_min, x_max, y_max)[0]
 
     return bound, read_srs(ds).ExportToProj4()
 

@@ -2,12 +2,11 @@ import os
 import numpy as np
 from osgeo import gdal, ogr
 from functools import partial
-from geospace._const import WGS84, CREATION
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool
 from geospace.projection import read_srs
-from geospace.spatial_calc import real_area
-from geospace.raster import tif_copy_assign
 from geospace.boundary import _enlarge_bound
+from geospace.spatial_calc import area_per_row
+from geospace._const import WGS84, CREATION, N_CPU
 from geospace.shape import shp_projection, shp_filter
 from geospace.utils import (zeros_tif, block_write,
                             context_file, ds_name, rep_name)
@@ -26,28 +25,72 @@ def _map_burn(arrs, burn_data):
     return rect_data.filled()
 
 
+def _in_shape(rect_trans, enlarge, n_x, n_y, outLayer, rasterize_option):
+    # set geotransform for enlarged tif
+    poly_trans = list(rect_trans)
+    poly_trans[1] = poly_trans[1] / enlarge
+    poly_trans[5] = poly_trans[5] / enlarge
+
+    # Rasterize
+    poly_file = '/vsimem/_poly.tif'
+    zeros_tif(poly_file, n_x * enlarge, n_y * enlarge, 1,
+              gdal.GDT_Byte, poly_trans, outLayer.GetSpatialRef(), no_data=2)
+    poly_ds = gdal.Open(poly_file, gdal.GA_Update)
+    gdal.RasterizeLayer(poly_ds, [1], outLayer, burn_values=[1],
+                        options=rasterize_option)
+    poly_data = poly_ds.ReadAsArray()
+
+    # https://towardsdatascience.com/efficiently-splitting-an-image-into-tiles-in-python-using-numpy-d1bf0dd7b6f7
+    if enlarge == 1:
+        count = poly_data
+    else:
+        count = poly_data.reshape(n_y, enlarge,
+                                  n_x, enlarge).swapaxes(1, 2)
+        count = count.sum(axis=(-2, -1), dtype=np.uint16)
+    return count
+
+
 def _clip(ds, outLayer, out_file, enlarge=10, ext='', save_cache=False,
           reuse_cache=False, rasterize_option=['ALL_TOUCHED=TRUE']):
-    # get no data
+    # get no data and Spatial Reference
     no_data = ds.GetRasterBand(1).GetNoDataValue()
+    srs = outLayer.GetSpatialRef()
 
     # get shp extent in form of raster grids
     t = ds.GetGeoTransform()
     x_min, x_max, y_min, y_max = outLayer.GetExtent()
-    bound = _enlarge_bound(ds, x_min, y_min, x_max, y_max)
+    bound, clip_range = _enlarge_bound(ds, x_min, y_min, x_max, y_max)
+    n_x, n_y = int(clip_range[2]), int(clip_range[3])
 
-    # clip with rectangle out_file, use Warp instead of Translate
-    # to project longitude from (0, 360) to (-180, 180)
-    option = gdal.WarpOptions(multithread=True, outputBounds=bound,
-                              srcSRS=outLayer.GetSpatialRef(),
-                              dstSRS=outLayer.GetSpatialRef(),
-                              creationOptions=CREATION, dstNodata=no_data,
-                              xRes=t[1], yRes=t[5], srcNodata=no_data,
-                              resampleAlg=gdal.GRA_NearestNeighbour)
-    rect = gdal.Warp(out_file, ds, options=option)
-    x_size, y_size = rect.RasterXSize, rect.RasterYSize
+    if out_file is not None:
+        # clip with rectangle out_file, use Warp instead of Translate
+        # to project longitude from (0, 360) to (-180, 180)
+        option = gdal.WarpOptions(multithread=True, outputBounds=bound,
+                                  srcSRS=srs, dstSRS=srs,
+                                  creationOptions=CREATION, dstNodata=no_data,
+                                  xRes=t[1], yRes=t[5], srcNodata=no_data,
+                                  resampleAlg=gdal.GRA_NearestNeighbour)
+        ds_rect = gdal.Warp(out_file, ds, options=option)
+        # mask value outside the shapefile
+        is_in = _in_shape(ds_rect.GetGeoTransform(), 1, n_x, n_y, outLayer, rasterize_option)
+        block_write(ds_rect, _map_burn, is_in)
+        return ds_rect, is_in
 
-    # paths of cached poly.tif and burn.tif
+    # get a rectangle containing the shapefile
+    rect_trans = list(t)
+    rect_trans[0], rect_trans[3] = bound[0], bound[3]
+    # longitude from (0, 360) to (-180, 180)
+    xoff = clip_range[0] if clip_range[0] > 0 else clip_range[0] + ds.RasterXSize
+    xoff, yoff = int(xoff), int(clip_range[1])
+    # shape cross the prime meridian
+    if xoff + n_x > ds.RasterXSize:
+        rect = np.concatenate(
+            [ds.ReadAsArray(xoff, yoff, ds.RasterXSize - xoff, n_y),
+             ds.ReadAsArray(0, yoff, xoff + n_x - ds.RasterXSize, n_y)], axis=-1)
+    else:
+        rect = ds.ReadAsArray(xoff, yoff, n_x, n_y)
+
+    # paths of cached _burn.tif
     if save_cache:
         reuse_cache = True
         cache_dir = 'cache'
@@ -59,41 +102,27 @@ def _clip(ds, outLayer, out_file, enlarge=10, ext='', save_cache=False,
     else:
         burn_file = '/vsimem/_burn_renew.tif'
 
-    # create boolean poly.tif and burn.tif
+    # calculate shapefile intersection area in each grid
     burn_ds = gdal.Open(burn_file)
     if reuse_cache and (burn_ds is not None):
         burn_data = burn_ds.ReadAsArray()
     else:
-        # set geotransform
-        trans = list(rect.GetGeoTransform())
-        trans[1] = trans[1] / enlarge
-        trans[5] = trans[5] / enlarge
+        # get counts of shape intersection for each grid
+        count = _in_shape(rect_trans, enlarge, n_x, n_y, outLayer, rasterize_option)
 
-        # Rasterize
-        poly_file = '/vsimem/_poly.tif'
-        zeros_tif(poly_file, x_size * enlarge, y_size * enlarge, 1,
-                  gdal.GDT_Byte, trans, outLayer.GetSpatialRef(), no_data=2)
-        poly_ds = gdal.Open(poly_file, gdal.GA_Update)
-        gdal.RasterizeLayer(poly_ds, [1], outLayer, burn_values=[1],
-                            options=rasterize_option)
-        poly_data = poly_ds.ReadAsArray()
+        # calculate area for each grid
+        row_area = area_per_row(rect_trans, srs.ExportToWkt(), n_y)
+        burn_data = count * row_area.reshape([n_y, -1]) / enlarge / enlarge
 
-        # https://towardsdatascience.com/efficiently-splitting-an-image-into-tiles-in-python-using-numpy-d1bf0dd7b6f7
-        if enlarge == 1:
-            burn_data = poly_data
-        else:
-            burn_data = poly_data.reshape(y_size, enlarge,
-                                          x_size, enlarge).swapaxes(1, 2)
-            burn_data = burn_data.mean(axis=(-2, -1), dtype=np.float32)
-            row_area = real_area(rect, np.arange(y_size), return_row_area=True)
-            burn_data = burn_data * row_area.reshape([y_size, -1])
-
-        # calculate shapefile intersection area in each grid
+        # save the burn_data into tif
         if reuse_cache:
-            tif_copy_assign(burn_file, rect, burn_data, no_data=0)
-
-    # change value in the rectangle
-    block_write(rect, _map_burn, burn_data)
+            burn_ds = gdal.GetDriverByName('GTiff').Create(
+                burn_file, n_x, n_y, 1, gdal.GDT_Float64, CREATION)
+            burn_ds.SetGeoTransform(tuple(rect_trans))
+            burn_ds.SetSpatialRef(srs)
+            burn_ds.GetRasterBand(1).SetNoDataValue(0)
+            burn_ds.WriteArray(burn_data)
+            burn_ds = None
 
     return rect, burn_data
 
@@ -102,18 +131,23 @@ def extract(ras, shp, out_path=None,
             ras_srs=WGS84, no_data=None, **kwargs):
     ds, ras = ds_name(ras)
     if out_path is None:
-        out_file = '/vsimem/_rect.tif'
+        out_file = None
     else:
         out_file = context_file(ds.GetDescription(), out_path)
         if os.path.exists(out_file):
             return out_file
-        kwargs['enlarge'] = 1
 
     # set projection
-    out_shp = '/vsimem/_outline.shp'
-    shp_projection(shp, out_shp, out_srs=read_srs([ds, ras_srs]))
-    outDataSet = ogr.Open(out_shp)
-    outLayer = outDataSet.GetLayer()
+    inDataset = ogr.Open(shp)
+    inLayer = inDataset.GetLayer()
+    if (read_srs([ds, ras_srs]).ExportToProj4() ==
+            inLayer.GetSpatialRef().ExportToProj4()):
+        outLayer = inLayer
+    else:
+        out_shp = '/vsimem/_outline.shp'
+        shp_projection(shp, out_shp, out_srs=read_srs([ds, ras_srs]))
+        outDataSet = ogr.Open(out_shp)
+        outLayer = outDataSet.GetLayer()
 
     # set no data
     if ds.GetRasterBand(1).GetNoDataValue() is not None:
@@ -125,13 +159,13 @@ def extract(ras, shp, out_path=None,
 
     # clip with the whole shapefile
     rect, burn_data = _clip(ds, outLayer, out_file, **kwargs)
-    if out_path is not None:
+    if out_file is not None:
         return rect.GetDescription()
 
     # iterate all bands
-    rect_data = rect.ReadAsArray()
-    mask = rect_data == no_data
-    arr = np.ma.masked_array(rect_data, mask)
+    not_in = np.broadcast_to(np.logical_not(burn_data.astype(bool)), rect.shape)
+    mask = np.logical_or(rect == no_data, not_in)
+    arr = np.ma.masked_array(rect, mask)
     arr = arr[np.newaxis, :, :] if arr.ndim != 3 else arr
 
     return np.ma.average(arr.reshape(arr.shape[0], -1),
@@ -139,7 +173,7 @@ def extract(ras, shp, out_path=None,
                          axis=1).filled(np.nan)
 
 
-def basin_average_worker(shp, rasters, s, t, field, filter, **kwargs):
+def basin_average_worker(rasters, shp, s, t, field, filter, **kwargs):
     filter_sql = f"{field} = '{filter}'"
     filter_shp = shp_filter(shp, filter_sql)
     one_out = np.full(t[-1], np.nan)
@@ -149,7 +183,7 @@ def basin_average_worker(shp, rasters, s, t, field, filter, **kwargs):
     return one_out
 
 
-def basin_average(shp, rasters, field='STAID', filter=None, **kwargs):
+def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
     if isinstance(rasters, str):
         rasters = [rasters]
     if filter is None:
@@ -162,8 +196,8 @@ def basin_average(shp, rasters, field='STAID', filter=None, **kwargs):
 
     names, s, t = rep_name(rasters)
 
-    with Pool(min(cpu_count() * 3 // 4, len(filter))) as p:
-        output = p.map(partial(basin_average_worker, shp, rasters,
+    with Pool(min(N_CPU, len(filter))) as p:
+        output = p.map(partial(basin_average_worker, rasters, shp,
                                s, t, field, **kwargs), filter)
 
     return pd.DataFrame(output, columns=names, index=filter)
