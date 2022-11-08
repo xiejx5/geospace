@@ -98,14 +98,15 @@ def _clip(ds, outLayer, out_file, enlarge=10, ext='', save_cache=False,
         if not os.path.exists(cache_dir):
             os.mkdir(cache_dir)
         burn_file = os.path.join(cache_dir, str(ext) + '_burn.tif')
-    elif reuse_cache:
-        burn_file = os.path.join('/vsimem/', str(ext) + '_burn.tif')
     else:
-        burn_file = '/vsimem/_burn_renew.tif'
+        burn_file = os.path.join('/vsimem/', str(ext) + '_burn.tif')
 
     # calculate shapefile intersection area in each grid
     burn_ds = gdal.Open(burn_file)
-    if reuse_cache and (burn_ds is not None):
+    if (reuse_cache and (burn_ds is not None) and
+        np.array_equal(rect_trans, burn_ds.GetGeoTransform()) and
+        srs.ExportToProj4() == burn_ds.GetSpatialRef().ExportToProj4() and
+            n_x == burn_ds.RasterXSize and n_y == burn_ds.RasterYSize):
         burn_data = burn_ds.ReadAsArray()
     else:
         # get counts of shape intersection for each grid
@@ -174,11 +175,12 @@ def extract(ras, shp, out_path=None,
                          axis=1).filled(np.nan)
 
 
-def basin_average_worker(rasters, shp, s, t, field, filter, **kwargs):
+def basin_average_worker(rasters, shp, is_unique, s, t, field, filter, **kwargs):
     filter_sql = f"{field} = '{filter}'"
     filter_shp = shp_filter(shp, filter_sql)
     one_out = np.full(t[-1], np.nan)
     for i, ras in enumerate(rasters):
+        kwargs['reuse_cache'] = False if is_unique[i] else True
         one_out[s[i]:t[i]] = extract(ras, filter_shp,
                                      ext=filter, **kwargs)
     return one_out
@@ -195,13 +197,23 @@ def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
         layer = ds.GetLayer()
         filter = range(layer.GetFeatureCount())
         field = None
-    if isinstance(filter, str) or isinstance(filter, int):
+    if isinstance(filter, (str, int)):
         filter = [filter]
 
-    names, s, t = rep_name(rasters)
+    arr = np.array([gdal.Open(ras).GetGeoTransform() for ras in rasters])
+    sort_idxs = np.lexsort((arr[:, 0], arr[:, 3], arr[:, 1], arr[:, 5]))
+    sort_rasters = np.array(rasters)[sort_idxs]
+    _, idxs, counts = np.unique(arr[:, [1, 5]][sort_idxs], axis=0,
+                                return_index=True, return_counts=True)
+    is_unique = np.full(len(rasters), False)
+    is_unique[idxs[counts == 1]] = True
+
+    sort_names, s, t, inverse = rep_name(sort_rasters, sort_idxs=sort_idxs)
 
     with Pool(min(N_CPU, len(filter))) as p:
-        output = p.map(partial(basin_average_worker, rasters, shp,
-                               s, t, field, **kwargs), filter)
+        output = p.map(partial(basin_average_worker, sort_rasters, shp,
+                               is_unique, s, t, field, **kwargs), filter)
 
-    return pd.DataFrame(output, columns=names, index=filter)
+    df = pd.DataFrame(output, columns=sort_names, index=filter)
+
+    return df.iloc[:, inverse]
