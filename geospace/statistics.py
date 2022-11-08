@@ -164,7 +164,7 @@ def extract(ras, shp, out_path=None,
     if out_file is not None:
         return rect.GetDescription()
 
-    # iterate all bands
+    # area weighted statistics
     not_in = np.broadcast_to(np.logical_not(burn_data.astype(bool)), rect.shape)
     mask = np.logical_or(rect == no_data, not_in)
     arr = np.ma.masked_array(rect, mask)
