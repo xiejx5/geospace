@@ -4,6 +4,8 @@ from multiprocessing import cpu_count
 # gdal config
 gdal.SetConfigOption("SHAPE_ENCODING", 'utf-8')
 gdal.PushErrorHandler('CPLQuietErrorHandler')
+gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
+gdal.SetConfigOption("GDAL_NUM_THREADS", "ALL_CPUS")
 
 # cpu used
 N_CPU = max(cpu_count() - 1, 1)
