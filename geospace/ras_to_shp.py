@@ -1,5 +1,5 @@
 import os
-from osgeo import gdal, ogr, osr
+from osgeo import gdal, ogr
 from geospace.projection import read_srs
 
 

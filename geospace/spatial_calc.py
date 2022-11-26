@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from osgeo import gdal
+from geospace.utils import ds_name
 
 
 def grid_area(lon_res, lat_res, lat_upper, n_lat):
@@ -57,15 +57,6 @@ def grid_area(lon_res, lat_res, lat_upper, n_lat):
     return R2 * np.radians(lon_res) * np.abs((q_lats[:-1] - q_lats[1:]) / q)
 
 
-def ds_name(ds):
-    if isinstance(ds, str):
-        ras = ds
-        ds = gdal.Open(ras)
-    else:
-        ras = ds.GetDescription()
-    return ds, ras
-
-
 def area_per_row(trans, proj_wkt, n_rows, offset=0):
     if 'PROJCS' in proj_wkt:
         cell_area = abs(trans[1] * trans[5]) / 1000000
@@ -78,6 +69,8 @@ def area_per_row(trans, proj_wkt, n_rows, offset=0):
 
 def real_area(ds, rows, offset=None, return_row_area=False):
     ds = ds_name(ds)[0]
+    rows = np.array(rows)
+    rows = rows if len(rows.shape) else rows[np.newaxis]
     trans = ds.GetGeoTransform()
     proj = ds.GetProjection()
     if 'PROJCS' in proj:
