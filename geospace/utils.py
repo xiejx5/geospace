@@ -78,10 +78,10 @@ def rep_name(rasters, sort_idxs=None):
         string = os.path.splitext(os.path.basename(ras))[0]
         names[s[i]:t[i]] = np.core.defchararray.add(string, np.char.mod('%d', np.arange(n_bands[i])))
         names[s[i]] = string
-        
+
     if sort_idxs is None:
         return names, s, t
-    
+
     relative_loc = np.zeros(t[-1], dtype=int)
     idxs = sort_idxs * np.power(10, int(np.ceil(np.log10(np.max(n_bands)))))
     for i, _ in enumerate(rasters):
@@ -89,8 +89,8 @@ def rep_name(rasters, sort_idxs=None):
     return names, s, t, np.argsort(relative_loc)
 
 
-
 def geo2imagexy(ds, x, y):
+    ds = ds_name(ds)[0]
     trans = ds.GetGeoTransform()
     a = np.array([[trans[1], trans[2]], [trans[4], trans[5]]])
     b = np.array([x - trans[0], y - trans[3]])
@@ -98,11 +98,12 @@ def geo2imagexy(ds, x, y):
     return np.round(col).astype(int), np.round(row).astype(int)
 
 
-def imagexy2geo(dataset, row, col):
+def imagexy2geo(ds, row, col):
     '''
     row, col to centroid lon, lat
     '''
-    trans = dataset.GetGeoTransform()
+    ds = ds_name(ds)[0]
+    trans = ds.GetGeoTransform()
     px = trans[0] + (col + 0.5) * trans[1] + (row + 0.5) * trans[2]
     py = trans[3] + (col + 0.5) * trans[4] + (row + 0.5) * trans[5]
     return px, py
