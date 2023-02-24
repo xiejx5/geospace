@@ -109,18 +109,6 @@ def gee_export_tif(image, filename, crs=None, crs_transform=None, scale=None, re
     #         'maxPixels': 1e13
     #     }).start()
 
-    # ee.batch.Export.image.toDrive(
-    #     **{
-    #         'image': image,
-    #         'description': asset,
-    #         'fileNamePrefix': asset,  # this is the name actually
-    #         'folder': 'SoilGrids',
-    #         'region': fc.geometry(),
-    #         'crs': 'EPSG:4326',
-    #         'crsTransform': crs_transform,
-    #         'maxPixels': 1e13
-    #     }).start()
-
 
 def gee_export_csv(fc, image, fields=['ORDER', '.*mean'],
                    return_url=False, **kwargs):
