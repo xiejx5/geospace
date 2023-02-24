@@ -15,7 +15,7 @@ def connected_to_internet(url='http://www.google.com/', timeout=1):
 
 
 # gee initialization
-def gee_initial(proxy='http://127.0.0.1:7890'):
+def gee_init(proxy='http://127.0.0.1:7890'):
     if not connected_to_internet():
         print("Set proxy to 127.0.0.1:7890")
         os.environ['HTTP_PROXY'] = proxy
@@ -122,8 +122,8 @@ def gee_export_tif(image, filename, crs=None, crs_transform=None, scale=None, re
     #     }).start()
 
 
-def gee_export_csv(fc, image, scale_enlarge=1, reducer=None,
-                   fields=['ORDER', '.*mean'], return_url=False):
+def gee_export_csv(fc, image, fields=['ORDER', '.*mean'],
+                   return_url=False, **kwargs):
     """export a csv containing the basin average value
 
     Args:
@@ -134,15 +134,13 @@ def gee_export_csv(fc, image, scale_enlarge=1, reducer=None,
         DataFrame: it has fields of 'ORDER' and 'mean'
     """
     # export as csv
-    scale = image.projection().nominalScale().multiply(scale_enlarge)
+    reducer = kwargs.pop('reducer', ee.Reducer.mean())
+    scale = kwargs.pop('scale', image.projection().nominalScale())
 
     if image.projection().crs().getInfo() != 'EPSG:4326':
         image = image.reproject('EPSG:4326', None, scale)
 
-    reducer = ee.Reducer.mean() if reducer is None else reducer
-    means = image.reduceRegions(**{'collection': fc,
-                                   'reducer': reducer,
-                                   'scale': scale})
+    means = image.reduceRegions(fc, reducer=reducer, scale=scale, **kwargs)
 
     url = means.select(fields, retainGeometry=False).getDownloadURL(filetype='csv')
     if return_url:

@@ -11,7 +11,7 @@ gdal.SetConfigOption("GDAL_NUM_THREADS", "ALL_CPUS")
 N_CPU = max(cpu_count() - 1, 1)
 
 # default spatial reference system
-WGS84 = "+proj=longlat +datum=WGS84 +ellps=WGS84"
+WGS84 = "EPSG:4326"
 
 # creation options
 CREATION = ['BIGTIFF=YES', 'TILED=YES', 'NUM_THREADS=ALL_CPUS',

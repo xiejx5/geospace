@@ -52,27 +52,38 @@ def resample(ds, out_path, **kwargs):
     return out_file
 
 
-def mosaic(ras_paths, out_path, **kwargs):
-    ds = ras_paths[0]
-    ds, ras = ds_name(ds)
+def mosaic(rasters, out_path, **kwargs):
+    if isinstance(rasters, (str, Path)):
+        rasters = [str(rasters)]
+    else:
+        rasters = [str(ras) for ras in rasters]
+
+    ds, ras = ds_name(rasters[0])
     out_file = context_file(ras, out_path)
 
     if os.path.exists(out_file):
         return out_file
 
-    separate = kwargs.pop('separate', False)
+    # convert longitude [0, 360] to [-180, 180] when mosaic nc files
+    all_nc = all(Path(f).suffix == '.nc' for f in rasters)
+    separate = kwargs.pop('separate', True if all_nc else False)
+    srcSRS = read_srs([ds, kwargs.pop('srcSRS', WGS84)])
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
-    ds = gdal.BuildVRT('/vsimem/Mosaic.vrt', ras_paths, separate=separate)
-
+    outputBounds = kwargs.pop('outputBounds', [-180, -90, 180, 90]
+                              if all_nc else None)
     option = gdal.WarpOptions(multithread=True,
+                              srcSRS=srcSRS,
                               creationOptions=CREATION,
                               resampleAlg=resample_alg,
+                              outputBounds=outputBounds,
                               **kwargs)
+
+    ds = gdal.BuildVRT('/vsimem/Mosaic.vrt', rasters, separate=separate)
     ds_out = gdal.Warp(out_file, ds, options=option)
 
     if separate:
         # each raster only have one band in the mosaic
-        band_names = (Path(p).stem for p in ras_paths)
+        band_names = (Path(p).stem for p in rasters)
         [ds_out.GetRasterBand(i + 1).SetDescription(band_name)
          for i, band_name in enumerate(band_names)]
 
@@ -87,7 +98,7 @@ def project_raster(ds, out_path, **kwargs):
         return out_file
 
     # input SpatialReference
-    in_srs = kwargs.pop('srcSRS', None)
+    in_srs = kwargs.pop('srcSRS', WGS84)
     inSpatialRef = read_srs([ds, in_srs])
 
     # output SpatialReference
@@ -120,11 +131,9 @@ def grib_to_tif(ds, out_path=None, **kwargs):
     if os.path.exists(out_file):
         return out_file
 
-    srsSRS = read_srs([ds, kwargs.pop('srsSRS', WGS84)])
-    dstSRS = kwargs.pop('dstSRS', WGS84)
+    srcSRS = read_srs([ds, kwargs.pop('srcSRS', WGS84)])
     option = gdal.WarpOptions(multithread=True,
-                              srcSRS=srsSRS,
-                              dstSRS=dstSRS,
+                              srcSRS=srcSRS,
                               creationOptions=CREATION,
                               **kwargs)
     gdal.Warp(out_file, ds, options=option)

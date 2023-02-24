@@ -141,8 +141,8 @@ def ds_name(ds):
     if isinstance(ds, gdal.Dataset):
         ras = ds.GetDescription()
     else:
-        ras = ds
-        ds = gdal.Open(str(ras))
+        ras = str(ds)
+        ds = gdal.Open(ras)
 
     return ds, ras
 

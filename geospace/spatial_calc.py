@@ -68,9 +68,10 @@ def area_per_row(trans, proj_wkt, n_rows, offset=0):
 
 
 def real_area(ds, rows, offset=None, return_row_area=False):
+    rows = np.array(rows).flatten()
+    if len(rows) == 0:
+        return np.array([])
     ds = ds_name(ds)[0]
-    rows = np.array(rows)
-    rows = rows if len(rows.shape) else rows[np.newaxis]
     trans = ds.GetGeoTransform()
     proj = ds.GetProjection()
     if 'PROJCS' in proj:
@@ -87,7 +88,7 @@ def real_area(ds, rows, offset=None, return_row_area=False):
                          trans[3] + offset * trans[5],
                          row_counts.shape[0]) / 1000000
     if return_row_area:
-        return row_area
+        return row_area[rows]
     return (row_counts * row_area).sum()
 
 

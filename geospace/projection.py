@@ -17,9 +17,7 @@ def read_srs(srs):
                 return layer.GetSpatialRef()
         else:
             SpatialRef = osr.SpatialReference(wkt=None)
-            if SpatialRef.ImportFromProj4(srs) == 0:
-                return SpatialRef
-            if SpatialRef.ImportFromWkt(srs) == 0:
+            if SpatialRef.SetFromUserInput(srs) == 0:
                 return SpatialRef
     elif isinstance(srs, gdal.Dataset) or isinstance(srs, ogr.DataSource):
         return read_srs(srs.GetDescription())
@@ -30,7 +28,7 @@ def read_srs(srs):
             SpatialRef = read_srs(s)
             if SpatialRef is not None and SpatialRef.ExportToWkt() != '':
                 return SpatialRef
-        raise(ValueError("srs must be set"))
+        raise (ValueError("srs must be set"))
     return None
 
 
