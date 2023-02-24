@@ -35,7 +35,7 @@ def gee_export_tif(image, filename, crs=None, crs_transform=None, scale=None, re
         image (ee.Image): the image that would be exported
         filename (string): exported path
         crs (str, optional): A default CRS string to use for any bands that do not explicitly specify one
-        crs_transform ([type]): control the spatial resolution and alignment
+        crs_transform ([type]): control the spatial resolution and alignment, e.g., [1, 0, -180, 0, -1, 90]
         region (object, optional): A polygon specifying a region to download
         file_per_band (bool, optional): Whether to produce a different GeoTIFF per band
     """
