@@ -1,4 +1,5 @@
 import os
+import tqdm
 import numpy as np
 from pathlib import Path
 from osgeo import gdal, ogr
@@ -166,7 +167,7 @@ def extract(ras, shp, out_path=None,
 
     # area weighted statistics
     not_in = np.broadcast_to(np.logical_not(burn_data.astype(bool)), rect.shape)
-    mask = np.logical_or(rect == no_data, not_in)
+    mask = (rect == no_data) | not_in | (~np.isfinite(rect))
     arr = np.ma.masked_array(rect, mask)
     arr = arr[np.newaxis, :, :] if arr.ndim != 3 else arr
 
@@ -211,8 +212,9 @@ def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
     sort_names, s, t, inverse = rep_name(sort_rasters, sort_idxs=sort_idxs)
 
     with Pool(min(N_CPU, len(filter))) as p:
-        output = p.map(partial(basin_average_worker, sort_rasters, shp,
-                               is_unique, s, t, field, **kwargs), filter)
+        output = list(tqdm.tqdm(p.imap(partial(basin_average_worker, sort_rasters, shp,
+                                               is_unique, s, t, field, **kwargs), filter),
+                                total=len(filter)))
 
     df = pd.DataFrame(output, columns=sort_names, index=filter)
 
