@@ -1,10 +1,37 @@
 import os
 import numpy as np
+from pathlib import Path
 from osgeo import gdal, ogr
 from geospace.projection import read_srs
 from geospace.shape import shp_projection
 from geospace._const import WGS84, CREATION
-from geospace.utils import imagexy2geo, ds_name
+from geospace.utils import imagexy2geo, ds_name, context_file, zeros_tif
+
+
+def shp2ras(shp, out_path, trans, attr='logK_Ice_x',
+            no_data=0, rasterize_option=['ALL_TOUCHED=TRUE']):
+    out_file = context_file(shp, out_path)
+
+    if Path(out_file).exists():
+        return
+
+    # create tif
+    zeros_tif(out_file, round(abs(2 * trans[0] / trans[1])),
+              round(abs(2 * trans[3] / trans[5])),
+              1, gdal.GDT_Float64, trans, 'EPSG:4326', no_data=no_data)
+    ds = gdal.Open(out_file, gdal.GA_Update)
+
+    # rasterize
+    ds_shp = ogr.Open(shp)
+    layer = ds_shp.GetLayer()
+    gdal.RasterizeLayer(ds, [1], layer, options=["ATTRIBUTE=%s" % attr] + rasterize_option)
+
+    # deal with permeability units
+    if Path(out_file).stem == 'permeability':
+        arr = ds.ReadAsArray()
+        arr[arr != no_data] = arr[arr != no_data] / 100
+        ds.WriteArray(arr)
+    ds = None
 
 
 def rasterize(shp, attr, out_path, ds_eg, tem_path,
