@@ -8,7 +8,6 @@ from geospace.zonal_stats import *
 from geospace.projection import *
 from geospace.utils import *
 from geospace.spatial_calc import *
-from geospace.gdal_calc import Calc
 from geospace.map_calc import map_calc
 
 try:

@@ -1,18 +1,21 @@
 import os
+import tqdm
 import numpy as np
+from osgeo import gdal
+from pathlib import Path
 from multiprocessing import Pool
 from collections.abc import Iterable
 from geospace.raster import mosaic
-from geospace.gdal_calc import Calc
+from osgeo_utils.gdal_calc import Calc
 from geospace._const import CREATION, N_CPU
 from geospace.utils import ds_name, context_file
 
 
 def band_map(i, ras_multi, band_idx_multi, calc_arg, out_file):
-    tem_file = os.path.join(os.path.dirname(out_file),
-                            '_temp_' + os.path.splitext(
-                            os.path.basename(out_file))[0] +
-                            '_' + str(i) + '.tif')
+    ds_ras = gdal.Open(ras_multi[0])
+    band_name = ds_ras.GetRasterBand(int(band_idx_multi[0])).GetDescription()
+    tem_name = band_name if band_name else f'_temp_{Path(out_file).stem}_{str(i)}'
+    tem_file = f"{Path(out_file).parent}/{tem_name}.tif"
 
     if os.path.exists(tem_file):
         return tem_file
@@ -90,12 +93,11 @@ def broadcast_args(ds_multi, calc_args, band_idxs):
 
 
 def map_calc(ds_multi, calc_args, out_path, band_idxs=None, multiprocess=True):
-    iter_ds_multi = isinstance(
-        ds_multi, Iterable) and not isinstance(ds_multi, str)
-
-    if iter_ds_multi:
+    if isinstance(ds_multi, Iterable) and not isinstance(ds_multi, str):
+        ds_multi = [str(ds) for ds in ds_multi]
         ds = ds_multi[0]
     else:
+        ds_multi = str(ds_multi)
         ds = ds_multi
 
     ds, ras = ds_name(ds)
@@ -112,9 +114,9 @@ def map_calc(ds_multi, calc_args, out_path, band_idxs=None, multiprocess=True):
                [ds_multi] * n, band_idxs,
                calc_args, [out_file] * n)
 
-    if multiprocess:
+    if multiprocess and (n > 1):
         with Pool(min(N_CPU, n)) as p:
-            tem_files = p.starmap(band_map, args)
+            tem_files = p.starmap(band_map, tqdm.tqdm(args, total=n))
     else:
         tem_files = []
         for arg in args:
