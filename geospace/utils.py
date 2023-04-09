@@ -125,6 +125,7 @@ def meshgrid(ds, geo_srs=WGS84):
 
 
 def context_file(ras, out_path):
+    out_path = str(out_path)
     ext = os.path.splitext(os.path.basename(out_path))[1]
     if ext != '.tif':
         if (not os.path.isdir(out_path)) and ('/vsimem' not in out_path):

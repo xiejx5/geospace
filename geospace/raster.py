@@ -142,6 +142,7 @@ def grib_to_tif(ds, out_path=None, **kwargs):
 
 
 def tif_copy_assign(out_file, ds_eg, array, srs=None, no_data=None):
+    out_file = str(out_file)
     if os.path.exists(out_file):
         return out_file
     ds_eg = ds_name(ds_eg)[0]
