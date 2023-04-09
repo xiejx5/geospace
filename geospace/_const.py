@@ -18,7 +18,8 @@ CREATION = ['BIGTIFF=YES', 'TILED=YES', 'NUM_THREADS=ALL_CPUS',
             'COMPRESS=ZSTD', 'PREDICTOR=1', 'ZSTD_LEVEL=1']
 
 # mapping between gdal type and ogr field type
-TYPE_MAP = {'uint8': gdal.GDT_Byte,
+TYPE_MAP = {'bool': gdal.GDT_Byte,
+            'uint8': gdal.GDT_Byte,
             'int8': gdal.GDT_Byte,
             'uint16': gdal.GDT_UInt16,
             'int16': gdal.GDT_Int16,
