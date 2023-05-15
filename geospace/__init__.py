@@ -14,3 +14,8 @@ try:
     from geospace.gee_export import *
 except Exception:
     pass
+
+try:
+    from geospace.mask import *
+except Exception:
+    pass

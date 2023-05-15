@@ -130,21 +130,25 @@ def gee_to_drive(image, **params):
     params['crs'] = params.pop('crs', 'EPSG:4326')
     params['maxPixels'] = params.pop('maxPixels', 1e13)
 
-    if params.get('dimensions') == 'default':
-        params['dimensions'] = '360x180'
-
     if params.get('crsTransform') == 'ERA5_LAND':
         params['crsTransform'] = [0.1, 0, -180.05, 0, -0.1, 90.05]
 
     if params.get('region') == 'global':
         params['region'] = ee.Geometry.Rectangle([-180, -90, 180, 90],
                                                  geodesic=False, proj="EPSG:4326")
+        if params.get('dimensions') == 'default':
+            params['dimensions'] = '360x180'
+    elif params.get('region') == 'nonATA':
+        params['region'] = ee.Geometry.Rectangle([-180, -60, 180, 89],
+                                                 geodesic=False, proj="EPSG:4326")
+        if params.get('dimensions') == 'default':
+            params['dimensions'] = '360x149'
 
     ee.batch.Export.image.toDrive(**params).start()
 
 
 def gee_export_csv(fc, image, fields=['ORDER', '.*mean'],
-                   return_url=False, **kwargs):
+                   return_url=False, to_drive=None, **kwargs):
     """export a csv containing the basin average value
 
     Args:
@@ -163,11 +167,15 @@ def gee_export_csv(fc, image, fields=['ORDER', '.*mean'],
 
     means = image.reduceRegions(fc, reducer=reducer, scale=scale, **kwargs)
 
-    url = means.select(fields, retainGeometry=False).getDownloadURL(filetype='csv')
-    if return_url:
-        return url
+    if to_drive is None:
+        url = means.select(fields, retainGeometry=False).getDownloadURL(filetype='csv')
+        if return_url:
+            return url
+        else:
+            return pd.read_csv(url)
     else:
-        return pd.read_csv(url)
+        ee.batch.Export.table.toDrive(means, description=to_drive,
+                                      selectors=fields).start()
 
 
 def gee_soilgrids(band):
