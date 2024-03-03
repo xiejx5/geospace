@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 from osgeo import gdal, ogr
 from functools import partial
-from multiprocessing import Pool
+from multiprocessing import get_context
 from geospace.projection import read_srs
 from geospace.boundary import _enlarge_bound
 from geospace.spatial_calc import area_per_row
@@ -211,10 +211,16 @@ def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
 
     sort_names, s, t, inverse = rep_name(sort_rasters, sort_idxs=sort_idxs)
 
-    with Pool(min(N_CPU, len(filter))) as p:
-        output = list(tqdm.tqdm(p.imap(partial(basin_average_worker, sort_rasters, shp,
-                                               is_unique, s, t, field, **kwargs), filter),
+    cpu_used = min(N_CPU, len(filter))
+    if cpu_used == 1 or kwargs.pop('parallel', True) == False:
+        output = list(tqdm.tqdm((partial(basin_average_worker, sort_rasters, shp,
+                                         is_unique, s, t, field, **kwargs)(f) for f in filter),
                                 total=len(filter)))
+    else:
+        with get_context('spawn').Pool(cpu_used) as p:
+            output = list(tqdm.tqdm(p.imap(partial(basin_average_worker, sort_rasters, shp,
+                                                   is_unique, s, t, field, **kwargs), filter),
+                                    total=len(filter)))
 
     df = pd.DataFrame(output, columns=sort_names, index=filter)
 

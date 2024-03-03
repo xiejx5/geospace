@@ -3,7 +3,7 @@ import tqdm
 import numpy as np
 from osgeo import gdal
 from pathlib import Path
-from multiprocessing import Pool
+from multiprocessing import get_context
 from collections.abc import Iterable
 from geospace.raster import mosaic
 from osgeo_utils.gdal_calc import Calc
@@ -92,7 +92,7 @@ def broadcast_args(ds_multi, calc_args, band_idxs):
     return ds_multi, calc_args, band_idxs
 
 
-def map_calc(ds_multi, calc_args, out_path, band_idxs=None, multiprocess=True):
+def map_calc(ds_multi, calc_args, out_path, band_idxs=None, parallel=True):
     if isinstance(ds_multi, Iterable) and not isinstance(ds_multi, str):
         ds_multi = [str(ds) for ds in ds_multi]
         ds = ds_multi[0]
@@ -114,8 +114,8 @@ def map_calc(ds_multi, calc_args, out_path, band_idxs=None, multiprocess=True):
                [ds_multi] * n, band_idxs,
                calc_args, [out_file] * n)
 
-    if multiprocess and (n > 1):
-        with Pool(min(N_CPU, n)) as p:
+    if parallel and (n > 1):
+        with get_context('spawn').Pool(min(N_CPU, n)) as p:
             tem_files = p.starmap(band_map, tqdm.tqdm(args, total=n))
     else:
         tem_files = []
