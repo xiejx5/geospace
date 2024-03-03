@@ -211,7 +211,7 @@ def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
 
     sort_names, s, t, inverse = rep_name(sort_rasters, sort_idxs=sort_idxs)
 
-    cpu_used = min(N_CPU, len(filter))
+    cpu_used = max(min(N_CPU, len(filter)), 1)
     if cpu_used == 1 or kwargs.pop('parallel', True) == False:
         output = list(tqdm.tqdm((partial(basin_average_worker, sort_rasters, shp,
                                          is_unique, s, t, field, **kwargs)(f) for f in filter),
