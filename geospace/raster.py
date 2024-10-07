@@ -158,7 +158,7 @@ def tif_copy_assign(out_file, ds_eg, array, srs=None, no_data=None):
             no_data = ds_eg.GetRasterBand(1).GetNoDataValue()
         else:
             raise (Exception('nodata must be passed'))
-    if isinstance(array, np.ma.core.MaskedArray):
+    if isinstance(array, np.ma.MaskedArray):
         array.set_fill_value(no_data)
         array = array.filled()
 

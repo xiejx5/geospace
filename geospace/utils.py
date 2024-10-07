@@ -76,7 +76,7 @@ def rep_name(rasters, sort_idxs=None):
     names = np.zeros(t[-1], dtype='object')
     for i, ras in enumerate(rasters):
         string = os.path.splitext(os.path.basename(ras))[0]
-        names[s[i]:t[i]] = np.core.defchararray.add(string, np.char.mod('%d', np.arange(n_bands[i])))
+        names[s[i]:t[i]] = np.strings.add(string, np.strings.mod('%d', np.arange(n_bands[i])))
         names[s[i]] = string
 
     if sort_idxs is None:
