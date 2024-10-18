@@ -1,3 +1,5 @@
+import re
+import math
 import cartopy
 import numpy as np
 import geospace as gs
@@ -6,12 +8,29 @@ from skimage.morphology import (remove_small_holes,
                                 remove_small_objects)
 
 
-def land_mask(out_file='/vsimem/land.tif', exclude_glacier=True, greenland=[126]):
+def rounder(x, n=2):
+    """Round a value to n significant figures.
+
+    If x is an integer or have only zeros after the decimal point, no need to round.
+    If x is a float, keep only the first n digits other than zero after the decimal point
+    """
+    try:
+        return round(x, -int(math.floor(math.log10(abs(math.modf(x)[0])))) + n - 1)
+    except ValueError:
+        return x
+
+
+def land_mask(out_file='/vsimem/land.tif', sizes='3600x1800', greenland=[126], exclude_glacier=True):
     if gdal.Open(out_file) is not None:
         return out_file
 
-    x_size, y_size, n_band, data_type = 3601, 1801, 1, gdal.GDT_Byte
-    trans, srs = (-180.05, 0.1, 0.0, 90.05, 0.0, -0.1), 'EPSG:4326'
+    x_size, y_size = (int(size) for size in re.findall(r'\d+', sizes))
+    # sizes=3600x1801 special case for ERA5
+    res = rounder(360 / x_size)
+    res = 360 / x_size if res < 0.01 else res
+    n_band, data_type, srs = 1, gdal.GDT_Byte, 'EPSG:4326'
+    trans = (-rounder(res * x_size / 2, 3), res, 0.0,
+             rounder(res * y_size / 2, 3), 0.0, -res)
 
     # mask for lake
     f = '/vsimem/_lake.tif'
@@ -56,8 +75,10 @@ def land_mask(out_file='/vsimem/land.tif', exclude_glacier=True, greenland=[126]
     ds = gdal.Open(out_file, gdal.GA_Update)
     valid = ~lake & ~glacier & land
     # valid = erosion(dilation(erosion(valid, disk(2)), disk(4)), disk(2))
-    valid = remove_small_objects(valid, 30)
-    valid = remove_small_holes(valid, 30)
+    # fill or remove 30 grids for 0.1
+    thres = math.ceil(0.3 / (res**2))
+    valid = remove_small_objects(valid, thres)
+    valid = remove_small_holes(valid, thres)
     ds.WriteArray(valid)
     ds = None
     return out_file

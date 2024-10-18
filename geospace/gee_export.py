@@ -147,7 +147,7 @@ def gee_to_drive(image, **params):
     ee.batch.Export.image.toDrive(**params).start()
 
 
-def gee_export_csv(fc, image, fields=['ORDER', '.*mean'],
+def gee_export_csv(fc, image, fields=['STAID', '.*mean'],
                    return_url=False, to_drive=None, **kwargs):
     """export a csv containing the basin average value
 
@@ -156,7 +156,7 @@ def gee_export_csv(fc, image, fields=['ORDER', '.*mean'],
         image (ee.Image): e.g. DEM
 
     Returns:
-        DataFrame: it has fields of 'ORDER' and 'mean'
+        DataFrame: it has fields of 'STAID' and 'mean'
     """
     # export as csv
     reducer = kwargs.pop('reducer', ee.Reducer.mean())
