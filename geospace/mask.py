@@ -20,17 +20,22 @@ def rounder(x, n=2):
         return x
 
 
+def shape_to_trans(y_size, x_size):
+    # sizes=3600x1801 special case for ERA5
+    res = rounder(360 / x_size)
+    res = 360 / x_size if res < 0.01 else res
+    trans = (-rounder(res * x_size / 2, 3), res, 0.0,
+             rounder(res * y_size / 2, 3), 0.0, -res)
+    return trans
+
+
 def land_mask(out_file='/vsimem/land.tif', sizes='3600x1800', greenland=[126], exclude_glacier=True):
     if gdal.Open(out_file) is not None:
         return out_file
 
     x_size, y_size = (int(size) for size in re.findall(r'\d+', sizes))
-    # sizes=3600x1801 special case for ERA5
-    res = rounder(360 / x_size)
-    res = 360 / x_size if res < 0.01 else res
-    n_band, data_type, srs = 1, gdal.GDT_Byte, 'EPSG:4326'
-    trans = (-rounder(res * x_size / 2, 3), res, 0.0,
-             rounder(res * y_size / 2, 3), 0.0, -res)
+    trans = shape_to_trans(y_size, x_size)
+    n_band, data_type, srs, res = 1, gdal.GDT_Byte, 'EPSG:4326', trans[1]
 
     # mask for lake
     f = '/vsimem/_lake.tif'
