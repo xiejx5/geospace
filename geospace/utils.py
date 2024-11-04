@@ -1,6 +1,4 @@
 import os
-import json
-import psutil
 import numpy as np
 from osgeo import gdal
 from collections.abc import Iterable
@@ -9,6 +7,8 @@ from geospace.projection import read_srs, coord_trans
 
 
 def block_write(datasets, map_fun, *args, **kwargs):
+    import psutil
+
     if not isinstance(datasets, Iterable):
         datasets = [datasets]
     datasets = [ds_name(ds)[0] for ds in datasets]
@@ -149,6 +149,8 @@ def ds_name(ds):
 
 
 def get_extent(layer):
+    import json
+
     r = layer.GetSpatialRef()
     crs = json.loads(r.ExportToPROJJSON())
     axis = [crs['coordinate_system']['axis'][i]['direction'].upper()

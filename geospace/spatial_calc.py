@@ -1,4 +1,3 @@
-import math
 import numpy as np
 from geospace.utils import ds_name
 
@@ -93,6 +92,8 @@ def real_area(ds, rows, offset=None, return_row_area=False):
 
 
 def distance(a, b):
+    import math
+
     ELLIPSOIDS = {
         # model           major (km)   minor (km)     flattening
         'WGS-84': (6378.137, 6356.7523142, 1 / 298.257223563),

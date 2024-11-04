@@ -1,11 +1,9 @@
 import os
-import ee
-import zipfile
-import requests
-import pandas as pd
 
 
 def connected_to_internet(url='http://www.google.com/', timeout=1):
+    import requests
+
     try:
         _ = requests.head(url, timeout=timeout)
         return True
@@ -16,6 +14,8 @@ def connected_to_internet(url='http://www.google.com/', timeout=1):
 
 # gee initialization
 def gee_init(proxy='http://127.0.0.1:7890'):
+    import ee
+
     if not connected_to_internet():
         print("Set proxy to 127.0.0.1:7890")
         os.environ['HTTP_PROXY'] = proxy
@@ -41,6 +41,10 @@ def gee_export_tif(image, filename, timeout=300, **params):
 
         details are in ee.Image.getDownloadURL()
     """
+    import ee
+    import requests
+    import zipfile
+
     if not isinstance(image, ee.Image):
         print("The image must be an ee.Image.")
         return
@@ -125,6 +129,8 @@ def gee_to_drive(image, **params):
 
         details are in Export.image.toDrive()
     """
+    import ee
+
     params['image'] = image
     params['description'] = params.pop('description', image.bandNames().get(0).getInfo())
     params['crs'] = params.pop('crs', 'EPSG:4326')
@@ -158,6 +164,9 @@ def gee_export_csv(fc, image, fields=['STAID', '.*mean'],
     Returns:
         DataFrame: it has fields of 'STAID' and 'mean'
     """
+    import ee
+    import pandas as pd
+
     # export as csv
     reducer = kwargs.pop('reducer', ee.Reducer.mean())
     scale = kwargs.pop('scale', image.projection().nominalScale())
@@ -189,6 +198,7 @@ def gee_soilgrids(band):
     Returns:
         image: ee.Image contains specific band
     """
+    import ee
 
     image = ee.Image("projects/soilgrids-isric/" + band + '_mean')
 
@@ -220,6 +230,8 @@ def gee_group_by_month(images):
     # Group by month, and then reduce within groups by mean()
     # the result is an ImageCollection with one image for each
     # month.
+    import ee
+
     months = ee.List.sequence(1, 12)
     by_month = ee.ImageCollection.fromImages(
         months.map(lambda m: images.filter(

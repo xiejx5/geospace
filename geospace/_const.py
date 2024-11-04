@@ -1,6 +1,6 @@
 import os
 from osgeo import gdal
-from multiprocessing import cpu_count
+
 
 # gdal config
 gdal.DontUseExceptions()
@@ -10,7 +10,7 @@ gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
 gdal.SetConfigOption("GDAL_NUM_THREADS", "ALL_CPUS")
 
 # cpu used
-N_CPU = max(int(int(os.environ.get('SLURM_CPUS_PER_TASK', cpu_count()))
+N_CPU = max(int(int(os.environ.get('SLURM_CPUS_PER_TASK', os.cpu_count()))
                 * int(os.environ.get('SLURM_NTASKS', 1)) * 3 // 4), 1)
 
 # default spatial reference system

@@ -1,17 +1,16 @@
 import os
-import tqdm
 import numpy as np
 from osgeo import gdal
 from pathlib import Path
-from multiprocessing import get_context
-from collections.abc import Iterable
 from geospace.raster import mosaic
-from osgeo_utils.gdal_calc import Calc
+from collections.abc import Iterable
 from geospace._const import CREATION, N_CPU
 from geospace.utils import ds_name, context_file
 
 
 def band_map(i, ras_multi, band_idx_multi, calc_arg, out_file):
+    from osgeo_utils.gdal_calc import Calc
+
     ds_ras = gdal.Open(ras_multi[0])
     band_name = ds_ras.GetRasterBand(int(band_idx_multi[0])).GetDescription()
     tem_name = band_name if band_name else f'_temp_{Path(out_file).stem}_{str(i)}'
@@ -93,6 +92,9 @@ def broadcast_args(ds_multi, calc_args, band_idxs):
 
 
 def map_calc(ds_multi, calc_args, out_path, band_idxs=None, parallel=True):
+    import tqdm
+    from multiprocessing import get_context
+
     if isinstance(ds_multi, Iterable) and not isinstance(ds_multi, str):
         ds_multi = [str(ds) for ds in ds_multi]
         ds = ds_multi[0]

@@ -1,5 +1,4 @@
 import os
-import re
 import numpy as np
 from osgeo import ogr
 from geospace._const import WGS84
@@ -37,6 +36,8 @@ def shp_projection(in_shp, out_shp, in_srs=WGS84, out_srs=WGS84):
 
 
 def shp_filter(shps, filter_sql, filter_shp=None):
+    import re
+
     driver = ogr.GetDriverByName("ESRI Shapefile")
     ds_shp = ogr.Open(shps, 0)
     layer = ds_shp.GetLayer()

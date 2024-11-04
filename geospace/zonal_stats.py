@@ -1,10 +1,8 @@
 import os
-import tqdm
 import numpy as np
 from pathlib import Path
 from osgeo import gdal, ogr
 from functools import partial
-from multiprocessing import get_context
 from geospace.projection import read_srs
 from geospace.boundary import _enlarge_bound
 from geospace.spatial_calc import area_per_row
@@ -12,11 +10,6 @@ from geospace._const import WGS84, CREATION, N_CPU
 from geospace.shape import shp_projection, shp_filter
 from geospace.utils import (zeros_tif, block_write,
                             context_file, ds_name, rep_name)
-
-try:
-    import pandas as pd
-except Exception:
-    pass
 
 
 # Now Read the large raster block by block, expecting to see no increase of
@@ -188,6 +181,10 @@ def basin_average_worker(rasters, shp, is_unique, s, t, field, filter, **kwargs)
 
 
 def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
+    import tqdm
+    import pandas as pd
+    from multiprocessing import get_context
+
     if isinstance(rasters, (str, Path)):
         rasters = [str(rasters)]
     else:

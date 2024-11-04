@@ -103,10 +103,7 @@ def download_tiles(shp, tile_pixel):
 
 
 def masked_outside(shp, ds):
-    try:
-        import psutil
-    except Exception:
-        print('psutil must be installed first')
+    import psutil
 
     ds, ras = ds_name(ds)
     ds = gdal.Open(ras, gdal.GA_Update)
