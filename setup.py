@@ -18,7 +18,7 @@ URL = "https://github.com/xiejx5/geospace"
 EMAIL = "xiejx5@gmail.com"
 AUTHOR = "Cody James"
 REQUIRES_PYTHON = ">=3.6.0"
-VERSION = "0.3.9"
+VERSION = "0.4.0"
 
 # What packages are required for this module to be executed?
 REQUIRED = ["numpy", "gdal", "tqdm"]
