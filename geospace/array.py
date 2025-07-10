@@ -1,6 +1,7 @@
 import numpy as np
 from osgeo import gdal
 from osgeo import gdal_array
+from geospace.mask import shape_to_trans
 
 
 def reproject(
@@ -36,23 +37,39 @@ def reproject(
     return dst_arr
 
 
-def fill_nodata(arr, valid, nodata=np.nan):
+def fill_nodata(ds, valid, nodata=np.nan, nearest=False, fast=True, **kwargs):
+    if isinstance(ds, gdal.Dataset):
+        trans, crs = ds.GetGeoTransform(), ds.GetProjection()
+        arr = ds.ReadAsArray()
+    else:
+        trans, crs = shape_to_trans(*ds.shape[-2:]), "EPSG:4326"
+        arr = ds.copy()
+
     null = -9999 if np.isnan(nodata) else nodata
     arr[np.isnan(arr)] = null
-    invalid = np.broadcast_to(~valid.astype(bool), arr.shape)
-    mask = ((arr != null) | invalid).astype(np.uint8)
     dst_ds = gdal_array.OpenArray(arr)
-    mask_ds = gdal_array.OpenArray(mask)
+    dst_ds.SetGeoTransform(trans)
+    dst_ds.SetProjection(crs)
+
+    invalid = np.broadcast_to(~valid.astype(bool), arr.shape)
+    mask = ((arr != null) | invalid) if fast else (arr != null)
+    mask_ds = gdal_array.OpenArray(mask.astype(np.uint8))
+    mask_ds.SetGeoTransform(trans)
+    mask_ds.SetProjection(crs)
+
+    kwargs.setdefault("maxSearchDist", 50)
+    kwargs.setdefault("smoothingIterations", 0)
+    kwargs.setdefault("options", {"NODATA": null, "TEMP_FILE_DRIVER": "MEM"})
+    kwargs["options"]["INTERPOLATION"] = "NEAREST" if nearest else "INV_DIST"
+
     for i in range(dst_ds.RasterCount):
         band = dst_ds.GetRasterBand(i + 1)
+        band.SetNoDataValue(null)
         maskBand = mask_ds.GetRasterBand(i + 1)
-        gdal.FillNodata(
-            targetBand=band,
-            maskBand=maskBand,
-            maxSearchDist=100,
-            smoothingIterations=0,
-            options={"NODATA": null},
-        )
+        gdal.FillNodata(targetBand=band, maskBand=maskBand, **kwargs)
+
+    if fast and (arr[~(mask | invalid)] == null).any():
+        arr = fill_nodata(ds, valid, nodata, nearest, fast=False, **kwargs)
     arr[invalid] = nodata
     return arr
 
