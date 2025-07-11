@@ -1,0 +1,33 @@
+[project]
+name = "geospace"
+version = "0.4.2"
+description = "Geospatial processing library based on GDAL and Google Earth Engine"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Cody James", email = "xiejx5@gmail.com" }
+]
+requires-python = ">=3.6"
+dependencies = [
+    "numpy",
+    "gdal",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+gee = [
+    "pandas",
+    "requests",
+    "earthengine-api",
+]
+
+[project.urls]
+homepage = "https://github.com/xiejx5/geospace"
+
+[build-system]
+requires = ["uv_build>=0.7.19,<0.8"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "geospace"
+module-root = ""
