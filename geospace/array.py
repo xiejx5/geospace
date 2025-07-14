@@ -68,7 +68,10 @@ def fill_nodata(ds, valid, nodata=np.nan, nearest=False, fast=True, **kwargs):
         maskBand = mask_ds.GetRasterBand(i + 1)
         gdal.FillNodata(targetBand=band, maskBand=maskBand, **kwargs)
 
-    if fast and (arr[~(mask | invalid)] == null).any():
+    if (arr[~(mask | invalid)] == null).any():
+        if not fast:
+            # Some nodata not filled, consider larger maxSearchDist
+            kwargs["maxSearchDist"] *= 2
         arr = fill_nodata(ds, valid, nodata, nearest, fast=False, **kwargs)
     arr[invalid] = nodata
     return arr
