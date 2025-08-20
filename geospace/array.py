@@ -12,9 +12,9 @@ def reproject(
     nodata=np.nan,
     **kwargs,
 ):
-    srcSRS = kwargs.pop("srcSRS", "EPSG:4326")
-    dstSRS = kwargs.pop("dstSRS", "EPSG:4326")
-    resampleAlg = kwargs.pop("resampleAlg", gdal.GRA_Average)
+    srcSRS = kwargs.pop('srcSRS', 'EPSG:4326')
+    dstSRS = kwargs.pop('dstSRS', 'EPSG:4326')
+    resampleAlg = kwargs.pop('resampleAlg', gdal.GRA_Average)
 
     option = gdal.WarpOptions(
         srcNodata=nodata,
@@ -42,7 +42,7 @@ def fill_nodata(ds, valid, nodata=np.nan, nearest=False, fast=True, **kwargs):
         trans, crs = ds.GetGeoTransform(), ds.GetProjection()
         arr = ds.ReadAsArray()
     else:
-        trans, crs = shape_to_trans(*ds.shape[-2:]), "EPSG:4326"
+        trans, crs = shape_to_trans(*ds.shape[-2:]), 'EPSG:4326'
         arr = ds.copy()
 
     null = -9999 if np.isnan(nodata) else nodata
@@ -57,10 +57,10 @@ def fill_nodata(ds, valid, nodata=np.nan, nearest=False, fast=True, **kwargs):
     mask_ds.SetGeoTransform(trans)
     mask_ds.SetProjection(crs)
 
-    kwargs.setdefault("maxSearchDist", 50)
-    kwargs.setdefault("smoothingIterations", 0)
-    kwargs.setdefault("options", {"NODATA": null, "TEMP_FILE_DRIVER": "MEM"})
-    kwargs["options"]["INTERPOLATION"] = "NEAREST" if nearest else "INV_DIST"
+    kwargs.setdefault('maxSearchDist', 50)
+    kwargs.setdefault('smoothingIterations', 0)
+    kwargs.setdefault('options', {'NODATA': null, 'TEMP_FILE_DRIVER': 'MEM'})
+    kwargs['options']['INTERPOLATION'] = 'NEAREST' if nearest else 'INV_DIST'
 
     for i in range(dst_ds.RasterCount):
         band = dst_ds.GetRasterBand(i + 1)
@@ -71,13 +71,13 @@ def fill_nodata(ds, valid, nodata=np.nan, nearest=False, fast=True, **kwargs):
     if (arr[~(mask | invalid)] == null).any():
         if not fast:
             # Some nodata not filled, consider larger maxSearchDist
-            kwargs["maxSearchDist"] *= 2
+            kwargs['maxSearchDist'] *= 2
         arr = fill_nodata(ds, valid, nodata, nearest, fast=False, **kwargs)
     arr[invalid] = nodata
     return arr
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # Example usage
     arr = reproject(
         np.zeros((3600, 7200), dtype=np.float32),

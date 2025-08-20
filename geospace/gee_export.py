@@ -8,7 +8,7 @@ def connected_to_internet(url='http://www.google.com/', timeout=1):
         _ = requests.head(url, timeout=timeout)
         return True
     except requests.ConnectionError:
-        print("Failed to access GEE")
+        print('Failed to access GEE')
     return False
 
 
@@ -17,7 +17,7 @@ def gee_init(proxy='http://127.0.0.1:7890'):
     import ee
 
     if not connected_to_internet():
-        print("Set proxy to 127.0.0.1:7890")
+        print('Set proxy to 127.0.0.1:7890')
         os.environ['HTTP_PROXY'] = proxy
         os.environ['HTTPS_PROXY'] = proxy
     try:
@@ -46,21 +46,21 @@ def gee_export_tif(image, filename, timeout=300, **params):
     import zipfile
 
     if not isinstance(image, ee.Image):
-        print("The image must be an ee.Image.")
+        print('The image must be an ee.Image.')
         return
 
     filename = os.path.abspath(filename)
     basename = os.path.basename(filename)
     name = os.path.splitext(basename)[0]
     filetype = os.path.splitext(basename)[1][1:].lower()
-    filename_zip = filename.replace(".tif", ".zip")
+    filename_zip = filename.replace('.tif', '.zip')
 
-    if filetype != "tif":
-        print("The filename must end with .tif")
+    if filetype != 'tif':
+        print('The filename must end with .tif')
         return
 
     try:
-        print("Generating URL ...")
+        print('Generating URL ...')
         params['name'] = name
         params['filePerBand'] = params.pop('filePerBand', False)
         if params.get('region') == 'global':
@@ -69,23 +69,23 @@ def gee_export_tif(image, filename, timeout=300, **params):
         try:
             url = image.getDownloadURL(params)
         except Exception as e:
-            print("An error occurred while downloading.")
+            print('An error occurred while downloading.')
             print(e)
             return
-        print(f"Downloading data from {url}\nPlease wait ...")
+        print(f'Downloading data from {url}\nPlease wait ...')
         r = requests.get(url, stream=True, timeout=timeout)
 
         if r.status_code != 200:
-            print("An error occurred while downloading.")
+            print('An error occurred while downloading.')
             return
 
-        with open(filename_zip, "wb") as fd:
+        with open(filename_zip, 'wb') as fd:
             for chunk in r.iter_content(chunk_size=1024):
                 fd.write(chunk)
 
     except Exception as e:
-        print("An error occurred while downloading.")
-        print(r.json()["error"]["message"])
+        print('An error occurred while downloading.')
+        print(r.json()['error']['message'])
         return
 
     try:
@@ -94,9 +94,9 @@ def gee_export_tif(image, filename, timeout=300, **params):
         os.remove(filename_zip)
 
         if params['filePerBand']:
-            print(f"Data downloaded to {os.path.dirname(filename)}")
+            print(f'Data downloaded to {os.path.dirname(filename)}')
         else:
-            print(f"Data downloaded to {filename}")
+            print(f'Data downloaded to {filename}')
     except Exception as e:
         print(e)
 
@@ -132,7 +132,9 @@ def gee_to_drive(image, **params):
     import ee
 
     params['image'] = image
-    params['description'] = params.pop('description', image.bandNames().get(0).getInfo())
+    params['description'] = params.pop(
+        'description', image.bandNames().get(0).getInfo()
+    )
     params['crs'] = params.pop('crs', 'EPSG:4326')
     params['maxPixels'] = params.pop('maxPixels', 1e13)
 
@@ -140,21 +142,24 @@ def gee_to_drive(image, **params):
         params['crsTransform'] = [0.1, 0, -180.05, 0, -0.1, 90.05]
 
     if params.get('region') == 'global':
-        params['region'] = ee.Geometry.Rectangle([-180, -90, 180, 90],
-                                                 geodesic=False, proj="EPSG:4326")
+        params['region'] = ee.Geometry.Rectangle(
+            [-180, -90, 180, 90], geodesic=False, proj='EPSG:4326'
+        )
         if params.get('dimensions') == 'default':
             params['dimensions'] = '360x180'
     elif params.get('region') == 'nonATA':
-        params['region'] = ee.Geometry.Rectangle([-180, -60, 180, 89],
-                                                 geodesic=False, proj="EPSG:4326")
+        params['region'] = ee.Geometry.Rectangle(
+            [-180, -60, 180, 89], geodesic=False, proj='EPSG:4326'
+        )
         if params.get('dimensions') == 'default':
             params['dimensions'] = '360x149'
 
     ee.batch.Export.image.toDrive(**params).start()
 
 
-def gee_export_csv(fc, image, fields=['STAID', '.*mean'],
-                   return_url=False, to_drive=None, **kwargs):
+def gee_export_csv(
+    fc, image, fields=['STAID', '.*mean'], return_url=False, to_drive=None, **kwargs
+):
     """export a csv containing the basin average value
 
     Args:
@@ -183,8 +188,9 @@ def gee_export_csv(fc, image, fields=['STAID', '.*mean'],
         else:
             return pd.read_csv(url)
     else:
-        ee.batch.Export.table.toDrive(means, description=to_drive,
-                                      selectors=fields).start()
+        ee.batch.Export.table.toDrive(
+            means, description=to_drive, selectors=fields
+        ).start()
 
 
 def gee_soilgrids(band):
@@ -200,28 +206,38 @@ def gee_soilgrids(band):
     """
     import ee
 
-    image = ee.Image("projects/soilgrids-isric/" + band + '_mean')
+    image = ee.Image('projects/soilgrids-isric/' + band + '_mean')
 
     # calculate depth-weighted value
     RAW_NAMES = ['B5', 'B10', 'B15', 'B30', 'B40', 'B100']
-    RAW_BANDS = ['0-5cm_mean', '5-15cm_mean', '15-30cm_mean',
-                 '30-60cm_mean', '60-100cm_mean', '100-200cm_mean']
+    RAW_BANDS = [
+        '0-5cm_mean',
+        '5-15cm_mean',
+        '15-30cm_mean',
+        '30-60cm_mean',
+        '60-100cm_mean',
+        '100-200cm_mean',
+    ]
     RAW_BANDS = [band + '_' + i for i in RAW_BANDS]
     RAW_DICT = {k: image.select(v) for k, v in zip(RAW_NAMES, RAW_BANDS)}
-    image = image.expression('5 * B5 + 10 * B10 + 15 * B15 + 30 * B30 + 40 * B40'
-                             ' + 100 * B100', RAW_DICT).divide(200)
+    image = image.expression(
+        '5 * B5 + 10 * B10 + 15 * B15 + 30 * B30 + 40 * B40 + 100 * B100', RAW_DICT
+    ).divide(200)
     image = image.reduceResolution(
-        reducer=ee.Reducer.mean(), bestEffort=True, maxPixels=64)
+        reducer=ee.Reducer.mean(), bestEffort=True, maxPixels=64
+    )
 
     return image
 
 
 def gee_wind(image, name='wind_10m'):
     wind_10m = image.expression(
-        'sqrt(u**2 + v**2)', {
+        'sqrt(u**2 + v**2)',
+        {
             'u': image.select('u_component_of_wind_10m'),
-            'v': image.select('v_component_of_wind_10m')
-        }).rename(name)
+            'v': image.select('v_component_of_wind_10m'),
+        },
+    ).rename(name)
     time = image.get('system:time_start')
     return wind_10m.set('system:time_start', time)
 
@@ -234,14 +250,21 @@ def gee_group_by_month(images):
 
     months = ee.List.sequence(1, 12)
     by_month = ee.ImageCollection.fromImages(
-        months.map(lambda m: images.filter(
-            ee.Filter.calendarRange(m, m, 'month')
-        ).mean().set('month', m)))
+        months.map(
+            lambda m: images.filter(ee.Filter.calendarRange(m, m, 'month'))
+            .mean()
+            .set('month', m)
+        )
+    )
     return by_month
 
 
 def gee_seasonality_index(images):
     avr = images.mean()
-    SI = gee_group_by_month(images).map(
-        lambda im: im.subtract(avr).abs()).sum().divide(avr.multiply(12))
+    SI = (
+        gee_group_by_month(images)
+        .map(lambda im: im.subtract(avr).abs())
+        .sum()
+        .divide(avr.multiply(12))
+    )
     return SI

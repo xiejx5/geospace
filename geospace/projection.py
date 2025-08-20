@@ -28,7 +28,7 @@ def read_srs(srs):
             SpatialRef = read_srs(s)
             if SpatialRef is not None and SpatialRef.ExportToWkt() != '':
                 return SpatialRef
-        raise (ValueError("srs must be set"))
+        raise (ValueError('srs must be set'))
     return None
 
 

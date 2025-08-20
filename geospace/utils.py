@@ -15,14 +15,23 @@ def block_write(datasets, map_fun, *args, **kwargs):
     ds = datasets[0]
     n_x, n_y, band = ds.RasterXSize, ds.RasterYSize, ds.GetRasterBand(1)
     no_data = band.GetNoDataValue()
-    ratio = int(n_y * n_x * ds.RasterCount * len(datasets) /
-                (psutil.virtual_memory().available * 0.5 /
-                 (2 + ds.ReadAsArray(0, 0, 1, 1).dtype.itemsize)) + 1)
+    ratio = int(
+        n_y
+        * n_x
+        * ds.RasterCount
+        * len(datasets)
+        / (
+            psutil.virtual_memory().available
+            * 0.5
+            / (2 + ds.ReadAsArray(0, 0, 1, 1).dtype.itemsize)
+        )
+        + 1
+    )
     if ratio == 1:
         arrs = []
         for d in datasets:
             arr = d.ReadAsArray()
-            mask = arr == d.GetRasterBand(1).GetNoDataValue(),
+            mask = (arr == d.GetRasterBand(1).GetNoDataValue(),)
             arrs.append(np.ma.masked_array(arr, mask=mask, fill_value=no_data))
         arr = map_fun(arrs, *args, **kwargs)
         ds.WriteArray(arr)
@@ -39,14 +48,18 @@ def block_write(datasets, map_fun, *args, **kwargs):
 
                 arrs = []
                 for d in datasets:
-                    arr = d.ReadAsArray(xoff=xoff, yoff=yoff,
-                                        xsize=win_xsize, ysize=win_ysize)
-                    mask = arr == d.GetRasterBand(1).GetNoDataValue(),
+                    arr = d.ReadAsArray(
+                        xoff=xoff, yoff=yoff, xsize=win_xsize, ysize=win_ysize
+                    )
+                    mask = (arr == d.GetRasterBand(1).GetNoDataValue(),)
                     arrs.append(np.ma.masked_array(arr, mask=mask, fill_value=no_data))
-                part_args = (a[yoff:yoff + win_ysize,
-                               xoff:xoff + win_xsize] for a in args)
-                part_kwargs = {k: v[yoff:yoff + win_ysize,
-                                    xoff:xoff + win_xsize] for k, v in kwargs.items()}
+                part_args = (
+                    a[yoff : yoff + win_ysize, xoff : xoff + win_xsize] for a in args
+                )
+                part_kwargs = {
+                    k: v[yoff : yoff + win_ysize, xoff : xoff + win_xsize]
+                    for k, v in kwargs.items()
+                }
                 arr = map_fun(arrs, *part_args, **part_kwargs)
                 ds.WriteArray(arr, xoff=xoff, yoff=yoff)
                 del arr, arrs, mask, part_args, part_kwargs
@@ -58,8 +71,7 @@ def rep_file(cache_dir, filename):
     if os.path.exists(file_path):
         i = 1
         while True:
-            file_path = os.path.join(
-                cache_dir, prefix + '(' + str(i) + ')' + extension)
+            file_path = os.path.join(cache_dir, prefix + '(' + str(i) + ')' + extension)
             if os.path.exists(file_path):
                 i += 1
             else:
@@ -76,7 +88,9 @@ def rep_name(rasters, sort_idxs=None):
     names = np.zeros(t[-1], dtype='object')
     for i, ras in enumerate(rasters):
         string = os.path.splitext(os.path.basename(ras))[0]
-        names[s[i]:t[i]] = np.strings.add(string, np.strings.mod('%d', np.arange(n_bands[i])))
+        names[s[i] : t[i]] = np.strings.add(
+            string, np.strings.mod('%d', np.arange(n_bands[i]))
+        )
         names[s[i]] = string
 
     if sort_idxs is None:
@@ -85,7 +99,7 @@ def rep_name(rasters, sort_idxs=None):
     relative_loc = np.zeros(t[-1], dtype=int)
     idxs = sort_idxs * np.power(10, int(np.ceil(np.log10(np.max(n_bands)))))
     for i, _ in enumerate(rasters):
-        relative_loc[s[i]:t[i]] = idxs[i] + np.arange(n_bands[i])
+        relative_loc[s[i] : t[i]] = idxs[i] + np.arange(n_bands[i])
     return names, s, t, np.argsort(relative_loc)
 
 
@@ -99,9 +113,9 @@ def geo2imagexy(ds, x, y):
 
 
 def imagexy2geo(ds, row, col):
-    '''
+    """
     row, col to centroid lon, lat
-    '''
+    """
     ds = ds_name(ds)[0]
     trans = ds.GetGeoTransform()
     px = trans[0] + (col + 0.5) * trans[1] + (row + 0.5) * trans[2]
@@ -118,7 +132,11 @@ def meshgrid(ds, geo_srs=WGS84):
         return x, y
 
     trans = coord_trans(ds, geo_srs)
-    lonlat = np.array(trans.TransformPoints(np.concatenate([x.reshape(-1, 1), y.reshape(-1, 1)], axis=1)))
+    lonlat = np.array(
+        trans.TransformPoints(
+            np.concatenate([x.reshape(-1, 1), y.reshape(-1, 1)], axis=1)
+        )
+    )
     lon = lonlat[:, 0].reshape(x.shape)
     lat = lonlat[:, 1].reshape(y.shape)
     return lon, lat
@@ -130,8 +148,9 @@ def context_file(ras, out_path):
     if ext != '.tif':
         if (not os.path.isdir(out_path)) and ('/vsimem' not in out_path):
             os.makedirs(out_path)
-        out_file = os.path.join(out_path, os.path.splitext(
-            os.path.basename(ras))[0] + '.tif')
+        out_file = os.path.join(
+            out_path, os.path.splitext(os.path.basename(ras))[0] + '.tif'
+        )
     else:
         out_file = out_path
 
@@ -153,8 +172,10 @@ def get_extent(layer):
 
     r = layer.GetSpatialRef()
     crs = json.loads(r.ExportToPROJJSON())
-    axis = [crs['coordinate_system']['axis'][i]['direction'].upper()
-            for i in range(r.GetAxesCount())]
+    axis = [
+        crs['coordinate_system']['axis'][i]['direction'].upper()
+        for i in range(r.GetAxesCount())
+    ]
     order = ['EAST', 'WEST', 'NORTH', 'SOUTH']
     order_dict = dict(zip(order, range(4)))
     axis_code = np.array([order_dict[i] for i in axis])
@@ -165,11 +186,10 @@ def get_extent(layer):
     return tuple(xy_extent)
 
 
-def zeros_tif(out_file, x_size, y_size, n_band,
-              data_type, trans, srs, no_data=2):
-
+def zeros_tif(out_file, x_size, y_size, n_band, data_type, trans, srs, no_data=2):
     ds = gdal.GetDriverByName('GTiff').Create(
-        out_file, x_size, y_size, n_band, data_type, CREATION)
+        out_file, x_size, y_size, n_band, data_type, CREATION
+    )
 
     # fill with 0 and set no data
     band = ds.GetRasterBand(1)

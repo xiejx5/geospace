@@ -26,7 +26,7 @@ def _in_shape(rect_trans, enlarge, n_x, n_y, outLayer, rasterize_option):
     poly_trans[5] = poly_trans[5] / enlarge
 
     # Rasterize
-    poly_file = "/vsimem/_poly.tif"
+    poly_file = '/vsimem/_poly.tif'
     zeros_tif(
         poly_file,
         n_x * enlarge,
@@ -38,7 +38,9 @@ def _in_shape(rect_trans, enlarge, n_x, n_y, outLayer, rasterize_option):
         no_data=2,
     )
     poly_ds = gdal.Open(poly_file, gdal.GA_Update)
-    gdal.RasterizeLayer(poly_ds, [1], outLayer, burn_values=[1], options=rasterize_option)
+    gdal.RasterizeLayer(
+        poly_ds, [1], outLayer, burn_values=[1], options=rasterize_option
+    )
     poly_data = poly_ds.ReadAsArray()
 
     # https://towardsdatascience.com/efficiently-splitting-an-image-into-tiles-in-python-using-numpy-d1bf0dd7b6f7
@@ -55,10 +57,10 @@ def _clip(
     outLayer,
     out_file,
     enlarge=10,
-    ext="",
+    ext='',
     save_cache=False,
     reuse_cache=False,
-    rasterize_option=["ALL_TOUCHED=TRUE"],
+    rasterize_option=['ALL_TOUCHED=TRUE'],
 ):
     # get no data and Spatial Reference
     no_data = ds.GetRasterBand(1).GetNoDataValue()
@@ -87,7 +89,9 @@ def _clip(
         )
         ds_rect = gdal.Warp(out_file, ds, options=option)
         # mask value outside the shapefile
-        is_in = _in_shape(ds_rect.GetGeoTransform(), 1, n_x, n_y, outLayer, rasterize_option)
+        is_in = _in_shape(
+            ds_rect.GetGeoTransform(), 1, n_x, n_y, outLayer, rasterize_option
+        )
         block_write(ds_rect, _map_burn, is_in)
         return ds_rect, is_in
 
@@ -112,12 +116,12 @@ def _clip(
     # paths of cached _burn.tif
     if save_cache:
         reuse_cache = True
-        cache_dir = "cache"
+        cache_dir = 'cache'
         if not os.path.exists(cache_dir):
             os.mkdir(cache_dir)
-        burn_file = os.path.join(cache_dir, str(ext) + "_burn.tif")
+        burn_file = os.path.join(cache_dir, str(ext) + '_burn.tif')
     else:
-        burn_file = os.path.join("/vsimem/", str(ext) + "_burn.tif")
+        burn_file = os.path.join('/vsimem/', str(ext) + '_burn.tif')
 
     # calculate shapefile intersection area in each grid
     burn_ds = gdal.Open(burn_file)
@@ -140,7 +144,7 @@ def _clip(
 
         # save the burn_data into tif
         if reuse_cache:
-            burn_ds = gdal.GetDriverByName("GTiff").Create(
+            burn_ds = gdal.GetDriverByName('GTiff').Create(
                 burn_file, n_x, n_y, 1, gdal.GDT_Float64, CREATION
             )
             burn_ds.SetGeoTransform(tuple(rect_trans))
@@ -164,10 +168,13 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, no_data=None, **kwargs):
     # set projection
     inDataset = ogr.Open(shp)
     inLayer = inDataset.GetLayer()
-    if read_srs([ds, ras_srs]).ExportToProj4() == inLayer.GetSpatialRef().ExportToProj4():
+    if (
+        read_srs([ds, ras_srs]).ExportToProj4()
+        == inLayer.GetSpatialRef().ExportToProj4()
+    ):
         outLayer = inLayer
     else:
-        out_shp = "/vsimem/_outline.shp"
+        out_shp = '/vsimem/_outline.shp'
         shp_projection(shp, out_shp, out_srs=read_srs([ds, ras_srs]))
         outDataSet = ogr.Open(out_shp)
         outLayer = outDataSet.GetLayer()
@@ -178,7 +185,7 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, no_data=None, **kwargs):
     elif no_data is not None:
         ds.GetRasterBand(1).SetNoDataValue(no_data)
     else:
-        raise (ValueError("no_data must be initialized"))
+        raise (ValueError('no_data must be initialized'))
 
     # clip with the whole shapefile
     rect, burn_data = _clip(ds, outLayer, out_file, **kwargs)
@@ -191,9 +198,9 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, no_data=None, **kwargs):
     arr = np.ma.masked_array(rect, mask)
     arr = arr[np.newaxis, :, :] if arr.ndim != 3 else arr
 
-    return np.ma.average(arr.reshape(arr.shape[0], -1), weights=burn_data.ravel(), axis=1).filled(
-        np.nan
-    )
+    return np.ma.average(
+        arr.reshape(arr.shape[0], -1), weights=burn_data.ravel(), axis=1
+    ).filled(np.nan)
 
 
 def basin_average_worker(rasters, shp, is_unique, s, t, field, filter, **kwargs):
@@ -201,12 +208,12 @@ def basin_average_worker(rasters, shp, is_unique, s, t, field, filter, **kwargs)
     filter_shp = shp_filter(shp, filter_sql)
     one_out = np.full(t[-1], np.nan)
     for i, ras in enumerate(rasters):
-        kwargs["reuse_cache"] = False if is_unique[i] else True
+        kwargs['reuse_cache'] = False if is_unique[i] else True
         one_out[s[i] : t[i]] = extract(ras, filter_shp, ext=filter, **kwargs)
     return one_out
 
 
-def basin_average(rasters, shp, field="STAID", filter=None, **kwargs):
+def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
     import tqdm
     import pandas as pd
     from multiprocessing import get_context
@@ -236,12 +243,19 @@ def basin_average(rasters, shp, field="STAID", filter=None, **kwargs):
     sort_names, s, t, inverse = rep_name(sort_rasters, sort_idxs=sort_idxs)
 
     cpu_used = max(min(N_CPU, len(filter)), 1)
-    if cpu_used == 1 or kwargs.pop("parallel", True) == False:
+    if cpu_used == 1 or kwargs.pop('parallel', True) == False:
         output = list(
             tqdm.tqdm(
                 (
                     partial(
-                        basin_average_worker, sort_rasters, shp, is_unique, s, t, field, **kwargs
+                        basin_average_worker,
+                        sort_rasters,
+                        shp,
+                        is_unique,
+                        s,
+                        t,
+                        field,
+                        **kwargs,
                     )(f)
                     for f in filter
                 ),
@@ -249,7 +263,7 @@ def basin_average(rasters, shp, field="STAID", filter=None, **kwargs):
             )
         )
     else:
-        with get_context("spawn").Pool(cpu_used) as p:
+        with get_context('spawn').Pool(cpu_used) as p:
             output = list(
                 tqdm.tqdm(
                     p.imap(

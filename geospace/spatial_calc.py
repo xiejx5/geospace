@@ -45,14 +45,18 @@ def grid_area(lon_res, lat_res, lat_upper, n_lat):
     e2 = 1 / (2 * e)
     ee = e * e
     sin90 = np.sin(np.pi / 2)
-    q = e1 * (sin90 / (1 - ee * sin90 * sin90) -
-              e2 * np.log((1 - e * sin90) / (1 + e * sin90)))
+    q = e1 * (
+        sin90 / (1 - ee * sin90 * sin90)
+        - e2 * np.log((1 - e * sin90) / (1 + e * sin90))
+    )
     R2 = SMA * SMA * q / 2
 
     lat_below = lat_upper - lat_res * n_lat
     sin_lats = np.sin(np.radians(np.linspace(lat_upper, lat_below, n_lat + 1)))
-    q_lats = e1 * (sin_lats / (1 - ee * sin_lats * sin_lats) -
-                   e2 * np.log((1 - e * sin_lats) / (1 + e * sin_lats)))
+    q_lats = e1 * (
+        sin_lats / (1 - ee * sin_lats * sin_lats)
+        - e2 * np.log((1 - e * sin_lats) / (1 + e * sin_lats))
+    )
     return R2 * np.radians(lon_res) * np.abs((q_lats[:-1] - q_lats[1:]) / q)
 
 
@@ -61,9 +65,10 @@ def area_per_row(trans, proj_wkt, n_rows, offset=0):
         cell_area = abs(trans[1] * trans[5]) / 1000000
         return np.full(n_rows, cell_area)
 
-    return grid_area(abs(trans[1]), abs(trans[5]),
-                     trans[3] + offset * trans[5],
-                     n_rows) / 1000000
+    return (
+        grid_area(abs(trans[1]), abs(trans[5]), trans[3] + offset * trans[5], n_rows)
+        / 1000000
+    )
 
 
 def real_area(ds, rows, offset=None, return_row_area=False):
@@ -83,9 +88,15 @@ def real_area(ds, rows, offset=None, return_row_area=False):
         offset = np.min(rows)
         rows = rows - offset
     row_counts = np.bincount(rows)
-    row_area = grid_area(abs(trans[1]), abs(trans[5]),
-                         trans[3] + offset * trans[5],
-                         row_counts.shape[0]) / 1000000
+    row_area = (
+        grid_area(
+            abs(trans[1]),
+            abs(trans[5]),
+            trans[3] + offset * trans[5],
+            row_counts.shape[0],
+        )
+        / 1000000
+    )
     if return_row_area:
         return row_area[rows]
     return (row_counts * row_area).sum()
@@ -119,74 +130,70 @@ def distance(a, b):
 
     i = 0
 
-    while (i == 0 or
-           (abs(lambda_lng - lambda_prime) > 10e-12 and i <= iter_limit)):
+    while i == 0 or (abs(lambda_lng - lambda_prime) > 10e-12 and i <= iter_limit):
         i += 1
 
         sin_lambda_lng, cos_lambda_lng = math.sin(lambda_lng), math.cos(lambda_lng)
 
         sin_sigma = math.sqrt(
-            (cos_reduced2 * sin_lambda_lng) ** 2 +
-            (cos_reduced1 * sin_reduced2 -
-             sin_reduced1 * cos_reduced2 * cos_lambda_lng) ** 2
+            (cos_reduced2 * sin_lambda_lng) ** 2
+            + (
+                cos_reduced1 * sin_reduced2
+                - sin_reduced1 * cos_reduced2 * cos_lambda_lng
+            )
+            ** 2
         )
 
         if sin_sigma == 0:
             return 0  # Coincident points
 
         cos_sigma = (
-            sin_reduced1 * sin_reduced2 +
-            cos_reduced1 * cos_reduced2 * cos_lambda_lng
+            sin_reduced1 * sin_reduced2 + cos_reduced1 * cos_reduced2 * cos_lambda_lng
         )
 
         sigma = math.atan2(sin_sigma, cos_sigma)
 
-        sin_alpha = (
-            cos_reduced1 * cos_reduced2 * sin_lambda_lng / sin_sigma
-        )
-        cos_sq_alpha = 1 - sin_alpha ** 2
+        sin_alpha = cos_reduced1 * cos_reduced2 * sin_lambda_lng / sin_sigma
+        cos_sq_alpha = 1 - sin_alpha**2
 
         if cos_sq_alpha != 0:
-            cos2_sigma_m = cos_sigma - 2 * (
-                sin_reduced1 * sin_reduced2 / cos_sq_alpha
-            )
+            cos2_sigma_m = cos_sigma - 2 * (sin_reduced1 * sin_reduced2 / cos_sq_alpha)
         else:
             cos2_sigma_m = 0.0  # Equatorial line
 
-        C = f / 16. * cos_sq_alpha * (4 + f * (4 - 3 * cos_sq_alpha))
+        C = f / 16.0 * cos_sq_alpha * (4 + f * (4 - 3 * cos_sq_alpha))
 
         lambda_prime = lambda_lng
-        lambda_lng = (
-            delta_lng + (1 - C) * f * sin_alpha * (
-                sigma + C * sin_sigma * (
-                    cos2_sigma_m + C * cos_sigma * (
-                        -1 + 2 * cos2_sigma_m ** 2
-                    )
-                )
-            )
+        lambda_lng = delta_lng + (1 - C) * f * sin_alpha * (
+            sigma
+            + C
+            * sin_sigma
+            * (cos2_sigma_m + C * cos_sigma * (-1 + 2 * cos2_sigma_m**2))
         )
 
     if i > iter_limit:
-        raise ValueError("Vincenty formula failed to converge!")
+        raise ValueError('Vincenty formula failed to converge!')
 
-    u_sq = cos_sq_alpha * (major ** 2 - minor ** 2) / minor ** 2
+    u_sq = cos_sq_alpha * (major**2 - minor**2) / minor**2
 
-    A = 1 + u_sq / 16384. * (
-        4096 + u_sq * (-768 + u_sq * (320 - 175 * u_sq))
-    )
+    A = 1 + u_sq / 16384.0 * (4096 + u_sq * (-768 + u_sq * (320 - 175 * u_sq)))
 
-    B = u_sq / 1024. * (256 + u_sq * (-128 + u_sq * (74 - 47 * u_sq)))
+    B = u_sq / 1024.0 * (256 + u_sq * (-128 + u_sq * (74 - 47 * u_sq)))
 
     delta_sigma = (
-        B * sin_sigma * (
-            cos2_sigma_m + B / 4. * (
-                cos_sigma * (
-                    -1 + 2 * cos2_sigma_m ** 2
-                ) - B / 6. * cos2_sigma_m * (
-                    -3 + 4 * sin_sigma ** 2
-                ) * (
-                    -3 + 4 * cos2_sigma_m ** 2
-                )
+        B
+        * sin_sigma
+        * (
+            cos2_sigma_m
+            + B
+            / 4.0
+            * (
+                cos_sigma * (-1 + 2 * cos2_sigma_m**2)
+                - B
+                / 6.0
+                * cos2_sigma_m
+                * (-3 + 4 * sin_sigma**2)
+                * (-3 + 4 * cos2_sigma_m**2)
             )
         )
     )

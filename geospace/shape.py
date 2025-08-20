@@ -7,8 +7,9 @@ from geospace.projection import read_srs, coord_trans
 
 
 def shp_buffer(in_shp, out_shp, buffdist, in_srs=None):
-    return shp_geom_map(in_shp, out_shp, in_srs=in_srs,
-                        func=lambda geom: geom.Buffer(float(buffdist)))
+    return shp_geom_map(
+        in_shp, out_shp, in_srs=in_srs, func=lambda geom: geom.Buffer(float(buffdist))
+    )
 
 
 def shp_projection(in_shp, out_shp, in_srs=WGS84, out_srs=WGS84):
@@ -38,7 +39,7 @@ def shp_projection(in_shp, out_shp, in_srs=WGS84, out_srs=WGS84):
 def shp_filter(shps, filter_sql, filter_shp=None):
     import re
 
-    driver = ogr.GetDriverByName("ESRI Shapefile")
+    driver = ogr.GetDriverByName('ESRI Shapefile')
     ds_shp = ogr.Open(shps, 0)
     layer = ds_shp.GetLayer()
     if filter_shp is None:
@@ -55,10 +56,9 @@ def shp_filter(shps, filter_sql, filter_shp=None):
     return filter_shp
 
 
-def shp_geom_map(in_shp, out_shp, idxs=None, func=None,
-                 in_srs=None, out_srs=None):
+def shp_geom_map(in_shp, out_shp, idxs=None, func=None, in_srs=None, out_srs=None):
     # Filename of input OGR file
-    driver = ogr.GetDriverByName("ESRI Shapefile")
+    driver = ogr.GetDriverByName('ESRI Shapefile')
     if isinstance(in_shp, ogr.Layer):
         inLayer = in_shp
     else:
@@ -70,8 +70,10 @@ def shp_geom_map(in_shp, out_shp, idxs=None, func=None,
 
     # create the output layer
     if 'vsimem' not in os.path.dirname(out_shp):
-        if (not os.path.exists(os.path.dirname(out_shp)) and
-                os.path.dirname(out_shp) != ''):
+        if (
+            not os.path.exists(os.path.dirname(out_shp))
+            and os.path.dirname(out_shp) != ''
+        ):
             os.makedirs(os.path.dirname(out_shp))
     if os.path.exists(out_shp):
         driver.DeleteDataSource(out_shp)
@@ -103,8 +105,9 @@ def shp_geom_map(in_shp, out_shp, idxs=None, func=None,
         # set the geometry and attribute
         outFeature.SetGeometry(geom if func is None else func(geom))
         for j in range(0, outLayerDefn.GetFieldCount()):
-            outFeature.SetField(outLayerDefn.GetFieldDefn(
-                j).GetNameRef(), inFeature.GetField(j))
+            outFeature.SetField(
+                outLayerDefn.GetFieldDefn(j).GetNameRef(), inFeature.GetField(j)
+            )
         # add the feature to the shapefile
         outLayer.CreateFeature(outFeature)
         # dereference the features and get the next input feature
@@ -127,8 +130,9 @@ def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
 
     # project clip_shp
     if save_cache:
-        proj_shp = rep_file('cache', os.path.splitext(
-            os.path.basename(clip_shp))[0] + '_proj.shp')
+        proj_shp = rep_file(
+            'cache', os.path.splitext(os.path.basename(clip_shp))[0] + '_proj.shp'
+        )
     else:
         proj_shp = '/vsimem/_proj.shp'
     shp_projection(clip_shp, proj_shp, out_srs=srs)
@@ -138,8 +142,9 @@ def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
     # export out_shp
     if out_shp is None:
         if save_cache:
-            out_shp = rep_file('cache', os.path.splitext(
-                os.path.basename(clip_shp))[0] + '_out.shp')
+            out_shp = rep_file(
+                'cache', os.path.splitext(os.path.basename(clip_shp))[0] + '_out.shp'
+            )
         else:
             out_shp = '/vsimem/_out.shp'
 

@@ -11,20 +11,24 @@ def convert_uint8(ds, in_no_data=None, out_no_data=255):
     ds, ras = ds_name(ds)
     frist_band = ds.GetRasterBand(1)
 
-    if (frist_band.DataType != gdal.GDT_Byte or
-            frist_band.ReadAsArray(0, 0, 1, 1).dtype != np.int8):
+    if (
+        frist_band.DataType != gdal.GDT_Byte
+        or frist_band.ReadAsArray(0, 0, 1, 1).dtype != np.int8
+    ):
         return ras
 
     if frist_band.GetNoDataValue() is not None:
         in_no_data = frist_band.GetNoDataValue()
     if in_no_data is None:
-        raise (ValueError("in_no_data must be initialed"))
+        raise (ValueError('in_no_data must be initialed'))
 
-    option = gdal.WarpOptions(multithread=True,
-                              creationOptions=CREATION,
-                              srcNodata=in_no_data,
-                              dstNodata=out_no_data,
-                              outputType=gdal.GDT_Byte)
+    option = gdal.WarpOptions(
+        multithread=True,
+        creationOptions=CREATION,
+        srcNodata=in_no_data,
+        dstNodata=out_no_data,
+        outputType=gdal.GDT_Byte,
+    )
     out_file = rep_file(os.path.dirname(ras), ras)
     gdal.Warp(out_file, ras, options=option)
 
@@ -43,10 +47,9 @@ def resample(ds, out_path, **kwargs):
         return out_file
 
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
-    option = gdal.WarpOptions(multithread=True,
-                              creationOptions=CREATION,
-                              resampleAlg=resample_alg,
-                              **kwargs)
+    option = gdal.WarpOptions(
+        multithread=True, creationOptions=CREATION, resampleAlg=resample_alg, **kwargs
+    )
     gdal.Warp(out_file, ds, options=option)
 
     return out_file
@@ -69,14 +72,15 @@ def mosaic(rasters, out_path, **kwargs):
     separate = kwargs.pop('separate', True if all_nc else False)
     srcSRS = read_srs([ds, kwargs.pop('srcSRS', WGS84)])
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
-    outputBounds = kwargs.pop('outputBounds', [-180, -90, 180, 90]
-                              if all_nc else None)
-    option = gdal.WarpOptions(multithread=True,
-                              srcSRS=srcSRS,
-                              creationOptions=CREATION,
-                              resampleAlg=resample_alg,
-                              outputBounds=outputBounds,
-                              **kwargs)
+    outputBounds = kwargs.pop('outputBounds', [-180, -90, 180, 90] if all_nc else None)
+    option = gdal.WarpOptions(
+        multithread=True,
+        srcSRS=srcSRS,
+        creationOptions=CREATION,
+        resampleAlg=resample_alg,
+        outputBounds=outputBounds,
+        **kwargs,
+    )
 
     ds = gdal.BuildVRT('/vsimem/Mosaic.vrt', rasters, separate=separate)
     ds_out = gdal.Warp(out_file, ds, options=option)
@@ -84,8 +88,10 @@ def mosaic(rasters, out_path, **kwargs):
     if separate:
         # each raster only have one band in the mosaic
         band_names = (Path(p).stem for p in rasters)
-        [ds_out.GetRasterBand(i + 1).SetDescription(band_name)
-         for i, band_name in enumerate(band_names)]
+        [
+            ds_out.GetRasterBand(i + 1).SetDescription(band_name)
+            for i, band_name in enumerate(band_names)
+        ]
 
     return out_file
 
@@ -106,11 +112,14 @@ def project_raster(ds, out_path, **kwargs):
     outSpatialRef = read_srs(out_srs)
 
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
-    option = gdal.WarpOptions(creationOptions=CREATION,
-                              resampleAlg=resample_alg,
-                              srcSRS=inSpatialRef,
-                              dstSRS=outSpatialRef,
-                              multithread=True, **kwargs)
+    option = gdal.WarpOptions(
+        creationOptions=CREATION,
+        resampleAlg=resample_alg,
+        srcSRS=inSpatialRef,
+        dstSRS=outSpatialRef,
+        multithread=True,
+        **kwargs,
+    )
     gdal.Warp(out_file, ds, options=option)
 
     return out_file
@@ -125,17 +134,17 @@ def grib_to_tif(ds, out_path=None, **kwargs):
     if out_path:
         out_file = context_file(ras, out_path)
     else:
-        out_file = os.path.join(os.path.dirname(ras), os.path.splitext(
-            os.path.basename(ras))[0] + '.tif')
+        out_file = os.path.join(
+            os.path.dirname(ras), os.path.splitext(os.path.basename(ras))[0] + '.tif'
+        )
 
     if os.path.exists(out_file):
         return out_file
 
     srcSRS = read_srs([ds, kwargs.pop('srcSRS', WGS84)])
-    option = gdal.WarpOptions(multithread=True,
-                              srcSRS=srcSRS,
-                              creationOptions=CREATION,
-                              **kwargs)
+    option = gdal.WarpOptions(
+        multithread=True, srcSRS=srcSRS, creationOptions=CREATION, **kwargs
+    )
     gdal.Warp(out_file, ds, options=option)
 
     return out_file
@@ -163,8 +172,13 @@ def tif_copy_assign(out_file, ds_eg, array, srs=None, no_data=None):
         array = array.filled()
 
     ds = gdal.GetDriverByName('GTiff').Create(
-        out_file, array.shape[2], array.shape[1], array.shape[0],
-        TYPE_MAP[array.dtype.name], CREATION)
+        out_file,
+        array.shape[2],
+        array.shape[1],
+        array.shape[0],
+        TYPE_MAP[array.dtype.name],
+        CREATION,
+    )
 
     # fill with array
     band = ds.GetRasterBand(1)

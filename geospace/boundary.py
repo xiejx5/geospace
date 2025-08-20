@@ -26,12 +26,18 @@ def _prj_bound(ds, bound, bound_srs):
     point = ogr.Geometry(ogr.wkbPoint)
     point_dx = ogr.Geometry(ogr.wkbPoint)
     point_dy = ogr.Geometry(ogr.wkbPoint)
-    point.AddPoint(t[0] + ds.RasterXSize // 2 * t[1] + ds.RasterYSize // 2 *
-                   t[2], t[3] + ds.RasterXSize // 2 * t[4] + ds.RasterYSize // 2 * t[5])
-    point_dx.AddPoint(t[0] + (ds.RasterXSize // 2 + 1) * t[1] + ds.RasterYSize // 2 *
-                      t[2], t[3] + (ds.RasterXSize // 2 + 1) * t[4] + ds.RasterYSize // 2 * t[5])
-    point_dy.AddPoint(t[0] + ds.RasterXSize // 2 * t[1] + (ds.RasterYSize // 2 + 1) *
-                      t[2], t[3] + ds.RasterXSize // 2 * t[4] + (ds.RasterYSize // 2 + 1) * t[5])
+    point.AddPoint(
+        t[0] + ds.RasterXSize // 2 * t[1] + ds.RasterYSize // 2 * t[2],
+        t[3] + ds.RasterXSize // 2 * t[4] + ds.RasterYSize // 2 * t[5],
+    )
+    point_dx.AddPoint(
+        t[0] + (ds.RasterXSize // 2 + 1) * t[1] + ds.RasterYSize // 2 * t[2],
+        t[3] + (ds.RasterXSize // 2 + 1) * t[4] + ds.RasterYSize // 2 * t[5],
+    )
+    point_dy.AddPoint(
+        t[0] + ds.RasterXSize // 2 * t[1] + (ds.RasterYSize // 2 + 1) * t[2],
+        t[3] + ds.RasterXSize // 2 * t[4] + (ds.RasterYSize // 2 + 1) * t[5],
+    )
     point.Transform(trans_reverse)
     point_dx.Transform(trans_reverse)
     point_dy.Transform(trans_reverse)
@@ -45,8 +51,7 @@ def _prj_bound(ds, bound, bound_srs):
 
     # get boundary
     win = np.array([geom.GetEnvelope()])
-    bound = [win[:, 0:2].min(), win[:, 2:].min(),
-             win[:, 0:2].max(), win[:, 2:].max()]
+    bound = [win[:, 0:2].min(), win[:, 2:].min(), win[:, 0:2].max(), win[:, 2:].max()]
     return bound
 
 
@@ -54,20 +59,30 @@ def _enlarge_bound(ds, x_min, y_min, x_max, y_max):
     t = ds.GetGeoTransform()
     ulX, ulY = geo2imagexy(ds, x_min, y_min)
     lrX, lrY = geo2imagexy(ds, x_max, y_max)
-    clip_range = [np.min([ulX, lrX], axis=0),
-                  np.min([ulY, lrY], axis=0),
-                  (np.abs(ulX - lrX) + 1),
-                  (np.abs(ulY - lrY) + 1)]
+    clip_range = [
+        np.min([ulX, lrX], axis=0),
+        np.min([ulY, lrY], axis=0),
+        (np.abs(ulX - lrX) + 1),
+        (np.abs(ulY - lrY) + 1),
+    ]
     ul_lon = t[0] + t[1] * clip_range[0] + t[2] * clip_range[1]
     ul_lat = t[3] + t[4] * clip_range[0] + t[5] * clip_range[1]
-    lr_lon = t[0] + t[1] * (clip_range[0] + clip_range[2]) + \
-        t[2] * (clip_range[1] + clip_range[3])
-    lr_lat = t[3] + t[4] * (clip_range[0] + clip_range[2]) + \
-        t[5] * (clip_range[1] + clip_range[3])
-    bound = [np.min([ul_lon, lr_lon], axis=0),
-             np.min([ul_lat, lr_lat], axis=0),
-             np.max([ul_lon, lr_lon], axis=0),
-             np.max([ul_lat, lr_lat], axis=0)]
+    lr_lon = (
+        t[0]
+        + t[1] * (clip_range[0] + clip_range[2])
+        + t[2] * (clip_range[1] + clip_range[3])
+    )
+    lr_lat = (
+        t[3]
+        + t[4] * (clip_range[0] + clip_range[2])
+        + t[5] * (clip_range[1] + clip_range[3])
+    )
+    bound = [
+        np.min([ul_lon, lr_lon], axis=0),
+        np.min([ul_lat, lr_lat], axis=0),
+        np.max([ul_lon, lr_lon], axis=0),
+        np.max([ul_lat, lr_lat], axis=0),
+    ]
 
     return bound, clip_range
 
@@ -88,8 +103,7 @@ def bound_layers(layers):
         shp_in = [ogr.Open(lyr) for lyr in layers]
         layers = [s.GetLayer() for s in shp_in]
     win = np.array([lyr.GetExtent() for lyr in layers])
-    bound = [win[:, 0:2].min(), win[:, 2:].min(),
-             win[:, 0:2].max(), win[:, 2:].max()]
+    bound = [win[:, 0:2].min(), win[:, 2:].min(), win[:, 0:2].max(), win[:, 2:].max()]
 
     return bound, read_srs(layers).ExportToProj4()
 
