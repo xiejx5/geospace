@@ -56,18 +56,25 @@ def _clip(
     ds,
     outLayer,
     out_file,
-    enlarge=10,
     ext='',
+    enlarge=None,
     save_cache=False,
     reuse_cache=False,
     rasterize_option=['ALL_TOUCHED=TRUE'],
 ):
+    # auto downscale the raster if resolution > 50 meter
+    t = ds.GetGeoTransform()
+    if enlarge is None:
+        if 'PROJCS' in ds.GetProjection():
+            enlarge = 1 if abs(t[1]) < 50 else 10
+        else:
+            enlarge = 1 if abs(t[1]) < 0.0005 else 10
+
     # get no data and Spatial Reference
     no_data = ds.GetRasterBand(1).GetNoDataValue()
     srs = outLayer.GetSpatialRef()
 
     # get shp extent in form of raster grids
-    t = ds.GetGeoTransform()
     x_min, x_max, y_min, y_max = outLayer.GetExtent()
     bound, clip_range = _enlarge_bound(ds, x_min, y_min, x_max, y_max)
     n_x, n_y = int(clip_range[2]), int(clip_range[3])

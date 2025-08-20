@@ -1,6 +1,6 @@
 [project]
 name = "geospace"
-version = "0.4.3"
+version = "0.4.4"
 description = "Geospatial processing library based on GDAL and Google Earth Engine"
 readme = "README.md"
 license = "MIT"
