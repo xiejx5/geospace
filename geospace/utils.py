@@ -14,7 +14,7 @@ def block_write(datasets, map_fun, *args, **kwargs):
     datasets = [ds_name(ds)[0] for ds in datasets]
     ds = datasets[0]
     n_x, n_y, band = ds.RasterXSize, ds.RasterYSize, ds.GetRasterBand(1)
-    no_data = band.GetNoDataValue()
+    nodata = band.GetNoDataValue()
     ratio = int(
         n_y
         * n_x
@@ -32,7 +32,7 @@ def block_write(datasets, map_fun, *args, **kwargs):
         for d in datasets:
             arr = d.ReadAsArray()
             mask = (arr == d.GetRasterBand(1).GetNoDataValue(),)
-            arrs.append(np.ma.masked_array(arr, mask=mask, fill_value=no_data))
+            arrs.append(np.ma.masked_array(arr, mask=mask, fill_value=nodata))
         arr = map_fun(arrs, *args, **kwargs)
         ds.WriteArray(arr)
         del arr, arrs, mask
@@ -52,7 +52,7 @@ def block_write(datasets, map_fun, *args, **kwargs):
                         xoff=xoff, yoff=yoff, xsize=win_xsize, ysize=win_ysize
                     )
                     mask = (arr == d.GetRasterBand(1).GetNoDataValue(),)
-                    arrs.append(np.ma.masked_array(arr, mask=mask, fill_value=no_data))
+                    arrs.append(np.ma.masked_array(arr, mask=mask, fill_value=nodata))
                 part_args = (
                     a[yoff : yoff + win_ysize, xoff : xoff + win_xsize] for a in args
                 )
@@ -186,7 +186,7 @@ def get_extent(layer):
     return tuple(xy_extent)
 
 
-def zeros_tif(out_file, x_size, y_size, n_band, data_type, trans, srs, no_data=2):
+def zeros_tif(out_file, x_size, y_size, n_band, data_type, trans, srs, nodata=2):
     ds = gdal.GetDriverByName('GTiff').Create(
         out_file, x_size, y_size, n_band, data_type, CREATION
     )
@@ -194,7 +194,7 @@ def zeros_tif(out_file, x_size, y_size, n_band, data_type, trans, srs, no_data=2
     # fill with 0 and set no data
     band = ds.GetRasterBand(1)
     band.Fill(0)
-    band.SetNoDataValue(no_data)
+    band.SetNoDataValue(nodata)
 
     # set geotransform
     ds.SetGeoTransform(tuple(trans))

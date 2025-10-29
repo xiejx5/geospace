@@ -7,7 +7,7 @@ from geospace._const import WGS84, CREATION, TYPE_MAP
 from geospace.utils import rep_file, ds_name, context_file
 
 
-def convert_uint8(ds, in_no_data=None, out_no_data=255):
+def convert_uint8(ds, in_nodata=None, out_nodata=255):
     ds, ras = ds_name(ds)
     frist_band = ds.GetRasterBand(1)
 
@@ -18,15 +18,15 @@ def convert_uint8(ds, in_no_data=None, out_no_data=255):
         return ras
 
     if frist_band.GetNoDataValue() is not None:
-        in_no_data = frist_band.GetNoDataValue()
-    if in_no_data is None:
-        raise (ValueError('in_no_data must be initialed'))
+        in_nodata = frist_band.GetNoDataValue()
+    if in_nodata is None:
+        raise (ValueError('in_nodata must be initialed'))
 
     option = gdal.WarpOptions(
         multithread=True,
         creationOptions=CREATION,
-        srcNodata=in_no_data,
-        dstNodata=out_no_data,
+        srcNodata=in_nodata,
+        dstNodata=out_nodata,
         outputType=gdal.GDT_Byte,
     )
     out_file = rep_file(os.path.dirname(ras), ras)
@@ -150,7 +150,7 @@ def grib_to_tif(ds, out_path=None, **kwargs):
     return out_file
 
 
-def tif_copy_assign(out_file, ds_eg, array, srs=None, no_data=None):
+def tif_copy_assign(out_file, ds_eg, array, srs=None, nodata=None):
     out_file = str(out_file)
     if os.path.exists(out_file):
         return out_file
@@ -162,13 +162,13 @@ def tif_copy_assign(out_file, ds_eg, array, srs=None, no_data=None):
         raise (Exception('array dims must be 2 or 3'))
 
     # set nodata value
-    if no_data is None:
+    if nodata is None:
         if ds_eg.GetRasterBand(1).GetNoDataValue() is not None:
-            no_data = ds_eg.GetRasterBand(1).GetNoDataValue()
+            nodata = ds_eg.GetRasterBand(1).GetNoDataValue()
         else:
             raise (Exception('nodata must be passed'))
     if isinstance(array, np.ma.MaskedArray):
-        array.set_fill_value(no_data)
+        array.set_fill_value(nodata)
         array = array.filled()
 
     ds = gdal.GetDriverByName('GTiff').Create(
@@ -182,7 +182,7 @@ def tif_copy_assign(out_file, ds_eg, array, srs=None, no_data=None):
 
     # fill with array
     band = ds.GetRasterBand(1)
-    band.SetNoDataValue(no_data)
+    band.SetNoDataValue(nodata)
     ds.WriteArray(array)
 
     # set geotransform

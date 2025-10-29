@@ -35,7 +35,7 @@ def _in_shape(rect_trans, enlarge, n_x, n_y, outLayer, rasterize_option):
         gdal.GDT_Byte,
         poly_trans,
         outLayer.GetSpatialRef(),
-        no_data=2,
+        nodata=2,
     )
     poly_ds = gdal.Open(poly_file, gdal.GA_Update)
     gdal.RasterizeLayer(
@@ -71,7 +71,7 @@ def _clip(
             enlarge = 1 if abs(t[1]) < 0.0005 else 10
 
     # get no data and Spatial Reference
-    no_data = ds.GetRasterBand(1).GetNoDataValue()
+    nodata = ds.GetRasterBand(1).GetNoDataValue()
     srs = outLayer.GetSpatialRef()
 
     # get shp extent in form of raster grids
@@ -88,10 +88,10 @@ def _clip(
             srcSRS=srs,
             dstSRS=srs,
             creationOptions=CREATION,
-            dstNodata=no_data,
+            dstNodata=nodata,
             xRes=t[1],
             yRes=t[5],
-            srcNodata=no_data,
+            srcNodata=nodata,
             resampleAlg=gdal.GRA_NearestNeighbour,
         )
         ds_rect = gdal.Warp(out_file, ds, options=option)
@@ -163,7 +163,7 @@ def _clip(
     return rect, burn_data
 
 
-def extract(ras, shp, out_path=None, ras_srs=WGS84, no_data=None, **kwargs):
+def extract(ras, shp, out_path=None, ras_srs=WGS84, nodata=None, **kwargs):
     ds, ras = ds_name(ras)
     if out_path is None:
         out_file = None
@@ -186,11 +186,11 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, no_data=None, **kwargs):
 
     # set no data
     if ds.GetRasterBand(1).GetNoDataValue() is not None:
-        no_data = ds.GetRasterBand(1).GetNoDataValue()
-    elif no_data is not None:
-        ds.GetRasterBand(1).SetNoDataValue(no_data)
+        nodata = ds.GetRasterBand(1).GetNoDataValue()
+    elif nodata is not None:
+        ds.GetRasterBand(1).SetNoDataValue(nodata)
     else:
-        raise (ValueError('no_data must be initialized'))
+        raise (ValueError('nodata must be initialized'))
 
     # clip with the whole shapefile
     rect, burn_data = _clip(ds, outLayer, out_file, **kwargs)
@@ -199,7 +199,7 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, no_data=None, **kwargs):
 
     # area weighted statistics
     not_in = np.broadcast_to(np.logical_not(burn_data.astype(bool)), rect.shape)
-    mask = (rect == no_data) | not_in | (~np.isfinite(rect))
+    mask = (rect == nodata) | not_in | (~np.isfinite(rect))
     arr = np.ma.masked_array(rect, mask)
     arr = arr[np.newaxis, :, :] if arr.ndim != 3 else arr
 

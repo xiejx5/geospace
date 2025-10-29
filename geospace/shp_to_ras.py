@@ -13,7 +13,7 @@ def shp2ras(
     out_path,
     trans,
     attr='logK_Ice_x',
-    no_data=0,
+    nodata=0,
     rasterize_option=['ALL_TOUCHED=TRUE'],
 ):
     out_file = context_file(shp, out_path)
@@ -30,7 +30,7 @@ def shp2ras(
         gdal.GDT_Float64,
         trans,
         'EPSG:4326',
-        no_data=no_data,
+        nodata=nodata,
     )
     ds = gdal.Open(out_file, gdal.GA_Update)
 
@@ -44,7 +44,7 @@ def shp2ras(
     # deal with permeability units
     if Path(out_file).stem == 'permeability':
         arr = ds.ReadAsArray()
-        arr[arr != no_data] = arr[arr != no_data] / 100
+        arr[arr != nodata] = arr[arr != nodata] / 100
         ds.WriteArray(arr)
     ds = None
 
