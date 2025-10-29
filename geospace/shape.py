@@ -37,28 +37,30 @@ def shp_projection(in_shp, out_shp, in_srs=WGS84, out_srs=WGS84):
 
 
 def shp_filter(shps, filter_sql, filter_shp=None):
-    import re
-
-    driver = ogr.GetDriverByName('ESRI Shapefile')
     ds_shp = ogr.Open(shps, 0)
     layer = ds_shp.GetLayer()
-    if filter_shp is None:
-        filter_shp = '/vsimem/filter.shp'
-
-    # select by indexes in gs.basin_average when field is None
-    res = re.findall(r"None = '([0-9]+)'", filter_sql)
-    if len(res) > 0:
-        return shp_geom_map(layer, filter_shp, idxs=int(res[0]))
-
     layer.SetAttributeFilter(filter_sql)
-    filter = driver.CreateDataSource(filter_shp)
-    filter.CopyLayer(layer, 'filter')
-    return filter_shp
+
+    if filter_shp is False:
+        driver = ogr.GetDriverByName('MEM')
+        out_ds = driver.CreateDataSource('')
+        out_ds.CopyLayer(layer, 'filter')
+        return out_ds
+
+    driver = ogr.GetDriverByName('ESRI Shapefile')
+    if filter_shp is None:
+        out_shp = '/vsimem/filter.shp'
+    else:
+        out_shp = filter_shp
+
+    out_ds = driver.CreateDataSource(out_shp)
+    out_ds.CopyLayer(layer, 'filter')
+
+    return out_shp
 
 
 def shp_geom_map(in_shp, out_shp, idxs=None, func=None, in_srs=None, out_srs=None):
     # Filename of input OGR file
-    driver = ogr.GetDriverByName('ESRI Shapefile')
     if isinstance(in_shp, ogr.Layer):
         inLayer = in_shp
     else:
@@ -69,16 +71,23 @@ def shp_geom_map(in_shp, out_shp, idxs=None, func=None, in_srs=None, out_srs=Non
     outSpatialRef = read_srs([out_srs, inLayer, in_srs])
 
     # create the output layer
-    if 'vsimem' not in os.path.dirname(out_shp):
-        if (
-            not os.path.exists(os.path.dirname(out_shp))
-            and os.path.dirname(out_shp) != ''
-        ):
-            os.makedirs(os.path.dirname(out_shp))
-    if os.path.exists(out_shp):
-        driver.DeleteDataSource(out_shp)
-    outDataSet = driver.CreateDataSource(out_shp)
-    outLayer = outDataSet.CreateLayer(out_shp, outSpatialRef)
+    return_ds = out_shp is None or out_shp is False
+    if return_ds:
+        driver = ogr.GetDriverByName('MEM')
+        outDataSet = driver.CreateDataSource('')
+        outLayer = outDataSet.CreateLayer('memory', outSpatialRef)
+    else:
+        driver = ogr.GetDriverByName('ESRI Shapefile')
+        if 'vsimem' not in os.path.dirname(out_shp):
+            if (
+                not os.path.exists(os.path.dirname(out_shp))
+                and os.path.dirname(out_shp) != ''
+            ):
+                os.makedirs(os.path.dirname(out_shp))
+        if os.path.exists(out_shp):
+            driver.DeleteDataSource(out_shp)
+        outDataSet = driver.CreateDataSource(out_shp)
+        outLayer = outDataSet.CreateLayer(out_shp, outSpatialRef)
 
     # add fields
     inLayerDefn = inLayer.GetLayerDefn()
@@ -113,7 +122,10 @@ def shp_geom_map(in_shp, out_shp, idxs=None, func=None, in_srs=None, out_srs=Non
         # dereference the features and get the next input feature
         outFeature = None
 
-    return out_shp
+    if return_ds:
+        return outDataSet
+    else:
+        return out_shp
 
 
 def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):

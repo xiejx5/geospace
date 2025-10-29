@@ -173,7 +173,7 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, no_data=None, **kwargs):
             return out_file
 
     # set projection
-    inDataset = ogr.Open(shp)
+    inDataset = shp if isinstance(shp, gdal.Dataset) else ogr.Open(shp)
     inLayer = inDataset.GetLayer()
     if (
         read_srs([ds, ras_srs]).ExportToProj4()
@@ -181,9 +181,7 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, no_data=None, **kwargs):
     ):
         outLayer = inLayer
     else:
-        out_shp = '/vsimem/_outline.shp'
-        shp_projection(shp, out_shp, out_srs=read_srs([ds, ras_srs]))
-        outDataSet = ogr.Open(out_shp)
+        outDataSet = shp_projection(inLayer, False, out_srs=read_srs([ds, ras_srs]))
         outLayer = outDataSet.GetLayer()
 
     # set no data
@@ -211,12 +209,15 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, no_data=None, **kwargs):
 
 
 def basin_average_worker(rasters, shp, is_unique, s, t, field, filter, **kwargs):
-    filter_sql = f"{field} = '{filter}'"
-    filter_shp = shp_filter(shp, filter_sql)
+    if field == 'FID':
+        filter_sql = f'{field} = {filter}'
+    else:
+        filter_sql = f"{field} = '{filter}'"
+    ds_shp = shp_filter(shp, filter_sql, filter_shp=False)
     one_out = np.full(t[-1], np.nan)
     for i, ras in enumerate(rasters):
         kwargs['reuse_cache'] = False if is_unique[i] else True
-        one_out[s[i] : t[i]] = extract(ras, filter_shp, ext=filter, **kwargs)
+        one_out[s[i] : t[i]] = extract(ras, ds_shp, ext=filter, **kwargs)
     return one_out
 
 
@@ -234,7 +235,7 @@ def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
         ds = ogr.Open(shp)
         layer = ds.GetLayer()
         filter = range(layer.GetFeatureCount())
-        field = None
+        field = 'FID'
     if isinstance(filter, (str, int)):
         filter = [filter]
 
