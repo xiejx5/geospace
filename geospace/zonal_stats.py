@@ -209,7 +209,7 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, nodata=None, **kwargs):
 
 
 def basin_average_worker(rasters, shp, is_unique, s, t, field, filter, **kwargs):
-    if field == 'FID':
+    if isinstance(filter, int):
         filter_sql = f'{field} = {filter}'
     else:
         filter_sql = f"{field} = '{filter}'"
@@ -234,7 +234,8 @@ def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
     if filter is None:
         ds = ogr.Open(shp)
         layer = ds.GetLayer()
-        filter = range(layer.GetFeatureCount())
+        layer.ResetReading()
+        filter = [feature.GetFID() for feature in layer]
         field = 'FID'
     if isinstance(filter, (str, int)):
         filter = [filter]

@@ -59,7 +59,7 @@ def shp_filter(shps, filter_sql, filter_shp=None):
     return out_shp
 
 
-def shp_geom_map(in_shp, out_shp, idxs=None, func=None, in_srs=None, out_srs=None):
+def shp_geom_map(in_shp, out_shp, func=None, in_srs=None, out_srs=None):
     # Filename of input OGR file
     if isinstance(in_shp, ogr.Layer):
         inLayer = in_shp
@@ -98,15 +98,9 @@ def shp_geom_map(in_shp, out_shp, idxs=None, func=None, in_srs=None, out_srs=Non
     # get the output layer's feature definition
     outLayerDefn = outLayer.GetLayerDefn()
 
-    # set all feature idxs if not assigned
-    if idxs is None:
-        idxs = range(inLayer.GetFeatureCount())
-    elif isinstance(idxs, int):
-        idxs = [idxs]
-
     # loop through the input features
-    for i in idxs:
-        inFeature = inLayer.GetFeature(i)
+    inFeature = inLayer.GetNextFeature()
+    while inFeature:
         # get the input geometry
         geom = inFeature.GetGeometryRef()
         # create a new feature
@@ -121,6 +115,7 @@ def shp_geom_map(in_shp, out_shp, idxs=None, func=None, in_srs=None, out_srs=Non
         outLayer.CreateFeature(outFeature)
         # dereference the features and get the next input feature
         outFeature = None
+        inFeature = inLayer.GetNextFeature()
 
     if return_ds:
         return outDataSet
@@ -169,13 +164,13 @@ def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
     logK = []
     # newField = ogr.FieldDefn('Area', ogr.OFTReal)
     # out_layer.CreateField(newField)
-    c = out_layer.GetFeatureCount()
-    for i in range(c):
-        f = out_layer.GetFeature(i)
+    f = out_layer.GetNextFeature()
+    while f:
         area.append(f.GetGeometryRef().GetArea())
         logK.append(f.GetField(field))
         # f.SetField('Area', f.GetGeometryRef().GetArea())
         # out_layer.SetFeature(f)
+        f = out_layer.GetNextFeature()
     area = np.array(area)
     logK = np.array(logK)
     mean_logK = np.average(logK, weights=area)
