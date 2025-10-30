@@ -6,13 +6,13 @@ from geospace.utils import rep_file
 from geospace.projection import read_srs, coord_trans
 
 
-def shp_buffer(in_shp, out_shp, buffdist, in_srs=None):
+def shp_buffer(in_shp, buffdist, out_shp=None, in_srs=None):
     return shp_geom_map(
         in_shp, out_shp, in_srs=in_srs, func=lambda geom: geom.Buffer(float(buffdist))
     )
 
 
-def shp_projection(in_shp, out_shp, in_srs=WGS84, out_srs=WGS84):
+def shp_projection(in_shp, out_shp=None, in_srs=WGS84, out_srs=WGS84):
     # Filename of input OGR file
     if isinstance(in_shp, ogr.Layer):
         inLayer = in_shp
@@ -36,30 +36,24 @@ def shp_projection(in_shp, out_shp, in_srs=WGS84, out_srs=WGS84):
     return shp_geom_map(in_shp, out_shp, out_srs=outSpatialRef, func=transform)
 
 
-def shp_filter(shps, filter_sql, filter_shp=None):
-    ds_shp = ogr.Open(shps, 0)
+def shp_filter(in_shp, where, out_shp=None):
+    ds_shp = ogr.Open(in_shp, 0)
     layer = ds_shp.GetLayer()
-    layer.SetAttributeFilter(filter_sql)
+    layer.SetAttributeFilter(where)
 
-    if filter_shp is False:
+    if out_shp is None:
         driver = ogr.GetDriverByName('MEM')
         out_ds = driver.CreateDataSource('')
         out_ds.CopyLayer(layer, 'filter')
         return out_ds
 
     driver = ogr.GetDriverByName('ESRI Shapefile')
-    if filter_shp is None:
-        out_shp = '/vsimem/filter.shp'
-    else:
-        out_shp = filter_shp
-
     out_ds = driver.CreateDataSource(out_shp)
     out_ds.CopyLayer(layer, 'filter')
-
     return out_shp
 
 
-def shp_geom_map(in_shp, out_shp, func=None, in_srs=None, out_srs=None):
+def shp_geom_map(in_shp, out_shp=None, func=None, in_srs=None, out_srs=None):
     # Filename of input OGR file
     if isinstance(in_shp, ogr.Layer):
         inLayer = in_shp
@@ -71,11 +65,10 @@ def shp_geom_map(in_shp, out_shp, func=None, in_srs=None, out_srs=None):
     outSpatialRef = read_srs([out_srs, inLayer, in_srs])
 
     # create the output layer
-    return_ds = out_shp is None or out_shp is False
-    if return_ds:
+    if out_shp is None:
         driver = ogr.GetDriverByName('MEM')
         outDataSet = driver.CreateDataSource('')
-        outLayer = outDataSet.CreateLayer('memory', outSpatialRef)
+        outLayer = outDataSet.CreateLayer('tmp', outSpatialRef)
     else:
         driver = ogr.GetDriverByName('ESRI Shapefile')
         if 'vsimem' not in os.path.dirname(out_shp):
@@ -117,15 +110,13 @@ def shp_geom_map(in_shp, out_shp, func=None, in_srs=None, out_srs=None):
         outFeature = None
         inFeature = inLayer.GetNextFeature()
 
-    if return_ds:
+    if out_shp is None:
         return outDataSet
     else:
         return out_shp
 
 
 def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
-    driver = ogr.GetDriverByName('ESRI Shapefile')
-
     # get layer of in_shp
     if isinstance(in_shp, str):
         ds = ogr.Open(in_shp)
@@ -140,10 +131,10 @@ def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
         proj_shp = rep_file(
             'cache', os.path.splitext(os.path.basename(clip_shp))[0] + '_proj.shp'
         )
+        shp_projection(clip_shp, proj_shp, out_srs=srs)
+        clip_ds = ogr.Open(proj_shp)
     else:
-        proj_shp = '/vsimem/_proj.shp'
-    shp_projection(clip_shp, proj_shp, out_srs=srs)
-    clip_ds = ogr.Open(proj_shp)
+        clip_ds = shp_projection(clip_shp, out_srs=srs)
     clip_layer = clip_ds.GetLayer()
 
     # export out_shp
@@ -152,10 +143,12 @@ def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
             out_shp = rep_file(
                 'cache', os.path.splitext(os.path.basename(clip_shp))[0] + '_out.shp'
             )
+            driver = ogr.GetDriverByName('ESRI Shapefile')
+            out_ds = driver.CreateDataSource(out_shp)
         else:
-            out_shp = '/vsimem/_out.shp'
-
-    out_ds = driver.CreateDataSource(out_shp)
+            out_shp = 'tmp'
+            driver = ogr.GetDriverByName('MEM')
+            out_ds = driver.CreateDataSource('')
     out_layer = out_ds.CreateLayer(out_shp, srs=srs)
 
     in_layer.Clip(clip_layer, out_layer)

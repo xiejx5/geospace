@@ -41,7 +41,7 @@ def land_mask(
 ):
     import re
     import math
-    import cartopy
+    from cartopy.io.shapereader import natural_earth
     from skimage.morphology import remove_small_holes, remove_small_objects
 
     if gdal.Open(out_file) is not None:
@@ -53,10 +53,7 @@ def land_mask(
 
     # mask for lake
     f = '/vsimem/_lake.tif'
-    shp = shp_filter(
-        cartopy.io.shapereader.natural_earth(name='lakes'), filter_sql="scalerank = '0'"
-    )
-    ds_shp = ogr.Open(shp)
+    ds_shp = shp_filter(natural_earth(name='lakes'), "scalerank = '0'")
     layer = ds_shp.GetLayer()
     zeros_tif(f, x_size, y_size, n_band, data_type, trans, srs)
     ds = gdal.Open(f, gdal.GA_Update)
@@ -68,11 +65,7 @@ def land_mask(
     f = '/vsimem/_glacier.tif'
     if exclude_glacier:
         sql = "','".join(str(i) for i in list(range(0, 8)) + greenland)
-        shp = shp_filter(
-            cartopy.io.shapereader.natural_earth(name='land'),
-            filter_sql=f"FID IN ('{sql}')",
-        )
-        ds_shp = ogr.Open(shp)
+        ds_shp = shp_filter(natural_earth(name='land'), f"FID IN ('{sql}')")
         layer = ds_shp.GetLayer()
         zeros_tif(f, x_size, y_size, n_band, data_type, trans, srs)
         ds = gdal.Open(f, gdal.GA_Update)
@@ -85,7 +78,7 @@ def land_mask(
         glacier = np.full(lake.shape, False)
 
     # mask for natureal earth land
-    ds_shp = ogr.Open(cartopy.io.shapereader.natural_earth(name='land'))
+    ds_shp = ogr.Open(natural_earth(name='land'))
     layer = ds_shp.GetLayer()
     zeros_tif(out_file, x_size, y_size, n_band, data_type, trans, srs)
     ds = gdal.Open(out_file, gdal.GA_Update)

@@ -181,7 +181,7 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, nodata=None, **kwargs):
     ):
         outLayer = inLayer
     else:
-        outDataSet = shp_projection(inLayer, False, out_srs=read_srs([ds, ras_srs]))
+        outDataSet = shp_projection(inLayer, out_srs=read_srs([ds, ras_srs]))
         outLayer = outDataSet.GetLayer()
 
     # set no data
@@ -208,20 +208,17 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, nodata=None, **kwargs):
     ).filled(np.nan)
 
 
-def basin_average_worker(rasters, shp, is_unique, s, t, field, filter, **kwargs):
-    if isinstance(filter, int):
-        filter_sql = f'{field} = {filter}'
-    else:
-        filter_sql = f"{field} = '{filter}'"
-    ds_shp = shp_filter(shp, filter_sql, filter_shp=False)
+def basin_average_worker(rasters, shp, is_unique, s, t, field, sel, **kwargs):
+    where = f'{field}={f"'{sel.replace("'", "''")}'" if isinstance(sel, str) else sel}'
+    ds_shp = shp_filter(shp, where)
     one_out = np.full(t[-1], np.nan)
     for i, ras in enumerate(rasters):
         kwargs['reuse_cache'] = False if is_unique[i] else True
-        one_out[s[i] : t[i]] = extract(ras, ds_shp, ext=filter, **kwargs)
+        one_out[s[i] : t[i]] = extract(ras, ds_shp, ext=sel, **kwargs)
     return one_out
 
 
-def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
+def basin_average(rasters, shp, field='STAID', sel=None, **kwargs):
     import tqdm
     import pandas as pd
     from multiprocessing import get_context
@@ -231,14 +228,14 @@ def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
     else:
         rasters = [str(ras) for ras in rasters]
 
-    if filter is None:
+    if sel is None:
         ds = ogr.Open(shp)
         layer = ds.GetLayer()
         layer.ResetReading()
-        filter = [feature.GetFID() for feature in layer]
+        sel = [feature.GetFID() for feature in layer]
         field = 'FID'
-    if isinstance(filter, (str, int)):
-        filter = [filter]
+    if isinstance(sel, (str, int)):
+        sel = [sel]
 
     arr = np.array([gdal.Open(ras).GetGeoTransform() for ras in rasters])
     sort_idxs = np.lexsort((arr[:, 0], arr[:, 3], arr[:, 1], arr[:, 5]))
@@ -251,7 +248,7 @@ def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
 
     sort_names, s, t, inverse = rep_name(sort_rasters, sort_idxs=sort_idxs)
 
-    cpu_used = max(min(N_CPU, len(filter)), 1)
+    cpu_used = max(min(N_CPU, len(sel)), 1)
     if cpu_used == 1 or kwargs.pop('parallel', True) == False:
         output = list(
             tqdm.tqdm(
@@ -266,9 +263,9 @@ def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
                         field,
                         **kwargs,
                     )(f)
-                    for f in filter
+                    for f in sel
                 ),
-                total=len(filter),
+                total=len(sel),
             )
         )
     else:
@@ -286,14 +283,14 @@ def basin_average(rasters, shp, field='STAID', filter=None, **kwargs):
                             field,
                             **kwargs,
                         ),
-                        filter,
+                        sel,
                     ),
-                    total=len(filter),
+                    total=len(sel),
                 )
             )
 
     # use column to store array for performance
-    # df = pd.DataFrame(output, columns=sort_names, index=filter)
-    df = pd.DataFrame(np.vstack(output).T, columns=filter, index=sort_names)
+    # df = pd.DataFrame(output, columns=sort_names, index=sel)
+    df = pd.DataFrame(np.vstack(output).T, columns=sel, index=sort_names)
 
     return df.iloc[inverse, :]

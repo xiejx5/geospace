@@ -1,6 +1,6 @@
 [project]
 name = "geospace"
-version = "0.4.7"
+version = "0.4.8"
 description = "Geospatial processing library based on GDAL and Google Earth Engine"
 readme = "README.md"
 license = "MIT"
@@ -18,6 +18,10 @@ dependencies = [
 gee = [
     "requests",
     "earthengine-api",
+]
+mask = [
+    "cartopy",
+    "scikit-image",
 ]
 
 [dependency-groups]

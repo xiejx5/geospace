@@ -107,9 +107,7 @@ def rasterize(
 
 def download_tiles(shp, tile_pixel):
     # create the output layer
-    out_shp = '/vsimem/outline_wgs84.shp'
-    shp_projection(shp, out_shp)
-    outDataSet = ogr.Open(out_shp)
+    outDataSet = shp_projection(shp)
     outLayer = outDataSet.GetLayer()
 
     # Create the destination data source
@@ -153,9 +151,7 @@ def masked_outside(shp, ds):
     )
 
     # create the output layer
-    out_shp = '/vsimem/outline_wgs84.shp'
-    shp_projection(shp, out_shp, out_srs=read_srs(ds))
-    outDataSet = ogr.Open(out_shp)
+    outDataSet = shp_projection(shp, out_srs=read_srs(ds))
     outLayer = outDataSet.GetLayer()
 
     band = ds.GetRasterBand(1)
