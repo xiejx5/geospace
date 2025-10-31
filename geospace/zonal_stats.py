@@ -208,8 +208,8 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, nodata=None, **kwargs):
     ).filled(np.nan)
 
 
-def basin_average_worker(rasters, shp, is_unique, s, t, col, sel, **kwargs):
-    where = f'{col}={f"'{sel.replace("'", "''")}'" if isinstance(sel, str) else sel}'
+def basin_average_worker(rasters, shp, is_unique, s, t, by, sel, **kwargs):
+    where = f'{by}={f"'{sel.replace("'", "''")}'" if isinstance(sel, str) else sel}'
     ds_shp = shp_filter(shp, where)
     one_out = np.full(t[-1], np.nan)
     for i, ras in enumerate(rasters):
@@ -218,7 +218,7 @@ def basin_average_worker(rasters, shp, is_unique, s, t, col, sel, **kwargs):
     return one_out
 
 
-def basin_average(rasters, shp, col='STAID', sel=None, parallel=True, **kwargs):
+def basin_average(rasters, shp, by='STAID', sel=None, parallel=True, **kwargs):
     """Calculate area-weighted average of rasters for each polygon in a shapefile.
 
     This function is optimized for processing a large number of rasters against
@@ -231,11 +231,11 @@ def basin_average(rasters, shp, col='STAID', sel=None, parallel=True, **kwargs):
         A single raster file path or a list of raster file paths.
     shp : str or Path
         Path to the shapefile containing the polygons (e.g., basins).
-    col : str, optional
+    by : str, optional
         The column name in the shapefile's attribute table to use for selecting
         polygons. Defaults to 'STAID'. If `sel` is None, this is changed to 'FID'.
     sel : list of str or int, optional
-        A list of values from the `col` column to select specific polygons for
+        A list of values from the `by` column to select specific polygons for
         processing. If None, all polygons in the shapefile will be processed.
         Defaults to None.
     parallel : bool, optional
@@ -266,7 +266,7 @@ def basin_average(rasters, shp, col='STAID', sel=None, parallel=True, **kwargs):
         layer = ds.GetLayer()
         layer.ResetReading()
         sel = [feature.GetFID() for feature in layer]
-        col = 'FID'
+        by = 'FID'
     if isinstance(sel, (str, int)):
         sel = [sel]
 
@@ -293,7 +293,7 @@ def basin_average(rasters, shp, col='STAID', sel=None, parallel=True, **kwargs):
                         is_unique,
                         s,
                         t,
-                        col,
+                        by,
                         **kwargs,
                     )(f)
                     for f in sel
@@ -313,7 +313,7 @@ def basin_average(rasters, shp, col='STAID', sel=None, parallel=True, **kwargs):
                             is_unique,
                             s,
                             t,
-                            col,
+                            by,
                             **kwargs,
                         ),
                         sel,

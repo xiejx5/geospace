@@ -158,7 +158,7 @@ def gee_to_drive(image, **params):
 
 
 def gee_export_csv(
-    fc, image, cols=['STAID', '.*mean'], return_url=False, to_drive=None, **kwargs
+    fc, image, columns=['STAID', '.*mean'], return_url=False, to_drive=None, **kwargs
 ):
     """export a csv containing the basin average value
 
@@ -182,14 +182,14 @@ def gee_export_csv(
     means = image.reduceRegions(fc, reducer=reducer, scale=scale, **kwargs)
 
     if to_drive is None:
-        url = means.select(cols, retainGeometry=False).getDownloadURL(filetype='csv')
+        url = means.select(columns, retainGeometry=False).getDownloadURL(filetype='csv')
         if return_url:
             return url
         else:
             return pd.read_csv(url)
     else:
         ee.batch.Export.table.toDrive(
-            means, description=to_drive, selectors=cols
+            means, description=to_drive, selectors=columns
         ).start()
 
 
