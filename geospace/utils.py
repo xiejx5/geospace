@@ -7,6 +7,16 @@ from geospace.projection import read_srs, coord_trans
 
 
 def block_write(datasets, map_fun, *args, **kwargs):
+    """Applies a function to raster datasets block by block and writes the result.
+
+    This function is designed to process large raster datasets that do not fit into memory.
+
+    Args:
+        datasets (list or gdal.Dataset): A list of GDAL datasets or a single dataset.
+        map_fun (function): The function to apply to each block.
+        *args: Positional arguments to pass to the map_fun.
+        **kwargs: Keyword arguments to pass to the map_fun.
+    """
     import psutil
 
     if not isinstance(datasets, Iterable):
@@ -66,6 +76,18 @@ def block_write(datasets, map_fun, *args, **kwargs):
 
 
 def rep_file(cache_dir, filename):
+    """Generates a new file path in a directory, avoiding name collisions.
+
+    If a file with the same name already exists, a number is appended to the
+    base name (e.g., 'file(1).txt').
+
+    Args:
+        cache_dir (str): The directory to save the file in.
+        filename (str): The original filename.
+
+    Returns:
+        str: The new, non-colliding file path.
+    """
     prefix, extension = os.path.splitext(os.path.basename(filename))
     file_path = os.path.join(cache_dir, prefix + extension)
     if os.path.exists(file_path):
@@ -80,6 +102,20 @@ def rep_file(cache_dir, filename):
 
 
 def rep_name(rasters, sort_idxs=None):
+    """Generates descriptive names for raster bands.
+
+    Args:
+        rasters (list): A list of raster file paths.
+        sort_idxs (np.ndarray, optional): An array of indices to sort the rasters by.
+                                          Defaults to None.
+
+    Returns:
+        tuple: A tuple containing:
+            - names (np.ndarray): An array of band names.
+            - s (np.ndarray): The start index of each raster's bands.
+            - t (np.ndarray): The end index of each raster's bands.
+            - (optional) np.ndarray: The sorted indices.
+    """
     n_bands = [gdal.Open(ras).RasterCount for ras in rasters]
     t = np.cumsum(n_bands)
     s = np.roll(t, 1)
@@ -104,6 +140,16 @@ def rep_name(rasters, sort_idxs=None):
 
 
 def geo2imagexy(ds, x, y):
+    """Converts geographic coordinates to image coordinates.
+
+    Args:
+        ds (gdal.Dataset or str): The raster dataset or its path.
+        x (float): The geographic x-coordinate (longitude).
+        y (float): The geographic y-coordinate (latitude).
+
+    Returns:
+        tuple: A tuple containing the column and row (col, row).
+    """
     ds = ds_name(ds)[0]
     trans = ds.GetGeoTransform()
     a = np.array([[trans[1], trans[2]], [trans[4], trans[5]]])
@@ -113,8 +159,15 @@ def geo2imagexy(ds, x, y):
 
 
 def imagexy2geo(ds, row, col):
-    """
-    row, col to centroid lon, lat
+    """Converts image coordinates to geographic coordinates of the cell's centroid.
+
+    Args:
+        ds (gdal.Dataset or str): The raster dataset or its path.
+        row (int): The row index.
+        col (int): The column index.
+
+    Returns:
+        tuple: A tuple containing the longitude and latitude (lon, lat).
     """
     ds = ds_name(ds)[0]
     trans = ds.GetGeoTransform()
@@ -124,6 +177,16 @@ def imagexy2geo(ds, row, col):
 
 
 def meshgrid(ds, geo_srs=WGS84):
+    """Creates a meshgrid of geographic coordinates from a raster dataset.
+
+    Args:
+        ds (gdal.Dataset or str): The raster dataset or its path.
+        geo_srs (str, optional): The output geographic spatial reference system.
+                                 Defaults to WGS84.
+
+    Returns:
+        tuple: A tuple containing the longitude and latitude meshgrids (lon, lat).
+    """
     ds, _ = ds_name(ds)
     col, row = np.meshgrid(np.arange(ds.RasterXSize), np.arange(ds.RasterYSize))
     x, y = imagexy2geo(ds, row, col)
@@ -143,6 +206,18 @@ def meshgrid(ds, geo_srs=WGS84):
 
 
 def context_file(ras, out_path):
+    """Generates an output file path based on a context raster.
+
+    If out_path is a directory, the output filename is derived from the
+    context raster's filename.
+
+    Args:
+        ras (str): The path to the context raster file.
+        out_path (str): The output path (can be a file or a directory).
+
+    Returns:
+        str: The generated output file path.
+    """
     out_path = str(out_path)
     ext = os.path.splitext(os.path.basename(out_path))[1]
     if ext != '.tif':
@@ -158,6 +233,14 @@ def context_file(ras, out_path):
 
 
 def ds_name(ds):
+    """Gets the GDAL dataset object and its name.
+
+    Args:
+        ds (gdal.Dataset or str): The GDAL dataset or its path.
+
+    Returns:
+        tuple: A tuple containing the GDAL dataset and its name (ds, name).
+    """
     if isinstance(ds, gdal.Dataset):
         ras = ds.GetDescription()
     else:
@@ -168,6 +251,14 @@ def ds_name(ds):
 
 
 def get_extent(layer):
+    """Gets the extent of an OGR layer.
+
+    Args:
+        layer (ogr.Layer): The OGR layer.
+
+    Returns:
+        tuple: The extent of the layer (x_min, y_min, x_max, y_max).
+    """
     import json
 
     r = layer.GetSpatialRef()
@@ -187,6 +278,21 @@ def get_extent(layer):
 
 
 def zeros_tif(out_file, x_size, y_size, n_band, data_type, trans, srs, nodata=2):
+    """Creates a new GeoTIFF file filled with zeros.
+
+    Args:
+        out_file (str): The path to the output GeoTIFF file.
+        x_size (int): The width of the raster in pixels.
+        y_size (int): The height of the raster in pixels.
+        n_band (int): The number of bands.
+        data_type (int): The data type of the raster (e.g., gdal.GDT_Byte).
+        trans (tuple): The geotransform.
+        srs (osr.SpatialReference or str): The spatial reference system.
+        nodata (int, optional): The nodata value. Defaults to 2.
+
+    Returns:
+        str: The path to the output GeoTIFF file.
+    """
     ds = gdal.GetDriverByName('GTiff').Create(
         out_file, x_size, y_size, n_band, data_type, CREATION
     )

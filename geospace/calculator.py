@@ -90,6 +90,22 @@ def broadcast_args(ds_multi, calc_args, band_idxs):
 
 
 def map_calc(ds_multi, calc_args, out_path, band_idxs=None, parallel=True):
+    """Performs calculations on raster datasets using gdal_calc.
+
+    This function can perform calculations on single or multiple bands of one or more
+    raster datasets. It supports parallel processing to speed up computations.
+
+    Args:
+        ds_multi (str or list): A single raster path or a list of raster paths.
+        calc_args (str or list): A gdal_calc expression or a list of expressions.
+        out_path (str): The path to the output raster file.
+        band_idxs (list, optional): A list of band indices to use in the calculation.
+                                    If None, all bands are used. Defaults to None.
+        parallel (bool, optional): If True, use parallel processing. Defaults to True.
+
+    Returns:
+        str: The path to the output raster file.
+    """
     import tqdm
     from multiprocessing import get_context
 

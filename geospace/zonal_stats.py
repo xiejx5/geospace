@@ -164,6 +164,28 @@ def _clip(
 
 
 def extract(ras, shp, out_path=None, ras_srs=WGS84, nodata=None, **kwargs):
+    """Extracts raster values within a shapefile.
+
+    This function can either clip the raster to the shapefile's extent and mask
+    the values outside the shapefile, or it can calculate the area-weighted
+    average of the raster values within the shapefile.
+
+    Args:
+        ras (str or gdal.Dataset): The input raster file path or GDAL dataset.
+        shp (str or ogr.DataSource): The input shapefile path or OGR DataSource.
+        out_path (str, optional): The path to the output clipped raster file. If None,
+                                  the function returns the area-weighted average.
+                                  Defaults to None.
+        ras_srs (str, optional): The spatial reference system of the raster.
+                                 Defaults to WGS84.
+        nodata (float, optional): The nodata value for the raster. If None, it is
+                                  read from the raster. Defaults to None.
+        **kwargs: Additional keyword arguments for the clipping process.
+
+    Returns:
+        str or np.ndarray: If out_path is provided, the path to the output raster file.
+                           Otherwise, an array of area-weighted averages for each band.
+    """
     ds, ras = ds_name(ras)
     if out_path is None:
         out_file = None
@@ -219,38 +241,26 @@ def basin_average_worker(rasters, shp, is_unique, s, t, by, sel, **kwargs):
 
 
 def basin_average(rasters, shp, by='STAID', sel=None, parallel=True, **kwargs):
-    """Calculate area-weighted average of rasters for each polygon in a shapefile.
+    """Calculates the area-weighted average of rasters for each polygon in a shapefile.
 
     This function is optimized for processing a large number of rasters against
     multiple polygons (basins). It uses multiprocessing to parallelize the
     computation over the polygons.
 
-    Parameters
-    ----------
-    rasters : str, Path, or list of str/Path
-        A single raster file path or a list of raster file paths.
-    shp : str or Path
-        Path to the shapefile containing the polygons (e.g., basins).
-    by : str, optional
-        The column name in the shapefile's attribute table to use for selecting
-        polygons. Defaults to 'STAID'. If `sel` is None, this is changed to 'FID'.
-    sel : list of str or int, optional
-        A list of values from the `by` column to select specific polygons for
-        processing. If None, all polygons in the shapefile will be processed.
-        Defaults to None.
-    parallel : bool, optional
-        If True (default), use multiprocessing to parallelize the computation.
-    **kwargs
-        Additional keyword arguments passed to `geospace.zonal_stats.extract` and
-        `geospace.zonal_stats._clip`.
+    Args:
+        rasters (str, Path, or list): A single raster file path or a list of paths.
+        shp (str or Path): The path to the shapefile containing the polygons.
+        by (str, optional): The column name in the shapefile's attribute table to
+                            use for selecting polygons. Defaults to 'STAID'.
+        sel (list, optional): A list of values from the `by` column to select
+                              specific polygons. If None, all polygons are processed.
+                              Defaults to None.
+        parallel (bool, optional): If True, use multiprocessing. Defaults to True.
+        **kwargs: Additional keyword arguments for `geospace.zonal_stats.extract`.
 
-    Returns
-    -------
-    pandas.DataFrame
-        A DataFrame where the index contains the raster names and the columns
-        correspond to the selected polygon identifiers (`sel`). The values are
-        the calculated area-weighted averages.
-
+    Returns:
+        pandas.DataFrame: A DataFrame with raster names as the index and polygon
+                          identifiers as columns.
     """
     import tqdm
     import pandas as pd

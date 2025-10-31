@@ -88,6 +88,16 @@ def _enlarge_bound(ds, x_min, y_min, x_max, y_max):
 
 
 def bound_raster(ds, bound, bound_srs=WGS84):
+    """Calculates the bounding box of a raster dataset within a given boundary.
+
+    Args:
+        ds (gdal.Dataset or str): The raster dataset or its path.
+        bound (tuple): The boundary to project (x_min, y_min, x_max, y_max).
+        bound_srs (str, optional): The spatial reference system of the boundary. Defaults to WGS84.
+
+    Returns:
+        tuple: A tuple containing the projected bounding box and the raster's projection string.
+    """
     ds, _ = ds_name(ds)
     x_min, y_min, x_max, y_max = _prj_bound(ds, bound, bound_srs)
     bound = _enlarge_bound(ds, x_min, y_min, x_max, y_max)[0]
@@ -96,6 +106,14 @@ def bound_raster(ds, bound, bound_srs=WGS84):
 
 
 def bound_layers(layers):
+    """Calculates the combined bounding box of multiple vector layers.
+
+    Args:
+        layers (list or str): A list of OGR layers or paths to shapefiles.
+
+    Returns:
+        tuple: A tuple containing the combined bounding box and the projection string.
+    """
     # clip extent
     if not isinstance(layers, list):
         layers = [layers]
@@ -109,15 +127,16 @@ def bound_layers(layers):
 
 
 def grid_bound(ds, regions):
-    """return gridded bound whose resolution exactly matches that of ds
+    """Calculates a gridded bounding box for given regions that aligns with a raster dataset's grid.
 
     Args:
-        ds (gdal.dataset): dataset or path
-        regions (list or str): regions of interest
+        ds (gdal.Dataset or str): The raster dataset or its path.
+        regions (list or str): A list of paths to shapefiles or a single shapefile path.
 
     Returns:
-        bound: spatial range of the regions in the ds
-        crs_transform: like bound but used in GEE
+        tuple: A tuple containing:
+            - bound (list): The calculated bounding box [x_min, y_min, x_max, y_max].
+            - crs_transform (list): The geotransform for use with Google Earth Engine.
     """
     ds = ds_name(ds)[0]
     t = ds.GetGeoTransform()

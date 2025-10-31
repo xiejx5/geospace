@@ -5,10 +5,14 @@ from geospace.shape import shp_filter
 
 
 def rounder(x, n=2):
-    """Round a value to n significant figures.
+    """Rounds a number to a specified number of significant figures.
 
-    If x is an integer or have only zeros after the decimal point, no need to round.
-    If x is a float, keep only the first n digits other than zero after the decimal point
+    Args:
+        x (float or int): The number to round.
+        n (int, optional): The number of significant figures. Defaults to 2.
+
+    Returns:
+        float: The rounded number.
     """
     import math
 
@@ -19,6 +23,15 @@ def rounder(x, n=2):
 
 
 def shape_to_trans(y_size, x_size):
+    """Calculates a GDAL geotransform from the shape of a global raster.
+
+    Args:
+        y_size (int): The number of rows (height).
+        x_size (int): The number of columns (width).
+
+    Returns:
+        tuple: The GDAL geotransform.
+    """
     # sizes=3600x1801 special case for ERA5
     res = rounder(360 / x_size)
     res = 360 / x_size if res < 0.01 else res
@@ -39,6 +52,23 @@ def land_mask(
     greenland=[126],
     exclude_glacier=True,
 ):
+    """Creates a land mask from Natural Earth data.
+
+    This function generates a raster mask that separates land from water,
+    with options to exclude glaciers and fill small holes.
+
+    Args:
+        out_file (str, optional): The path to the output mask file.
+                                  Defaults to '/vsimem/land.tif'.
+        sizes (str, optional): The dimensions of the output mask (e.g., '3600x1800').
+                               Defaults to '3600x1800'.
+        greenland (list, optional): A list of FIDs for Greenland polygons to exclude.
+                                    Defaults to [126].
+        exclude_glacier (bool, optional): If True, exclude glaciers. Defaults to True.
+
+    Returns:
+        str: The path to the output mask file.
+    """
     import re
     import math
     from cartopy.io.shapereader import natural_earth

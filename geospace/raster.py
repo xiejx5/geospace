@@ -8,6 +8,17 @@ from geospace.utils import rep_file, ds_name, context_file
 
 
 def convert_uint8(ds, in_nodata=None, out_nodata=255):
+    """Converts a raster dataset to UInt8 data type.
+
+    Args:
+        ds (gdal.Dataset or str): The input raster dataset or its path.
+        in_nodata (float, optional): The input nodata value. If None, it is read from the dataset.
+                                     Defaults to None.
+        out_nodata (int, optional): The output nodata value. Defaults to 255.
+
+    Returns:
+        str: The path to the converted raster file.
+    """
     ds, ras = ds_name(ds)
     frist_band = ds.GetRasterBand(1)
 
@@ -40,6 +51,16 @@ def convert_uint8(ds, in_nodata=None, out_nodata=255):
 
 
 def resample(ds, out_path, **kwargs):
+    """Resamples a raster dataset to a new resolution.
+
+    Args:
+        ds (gdal.Dataset or str): The input raster dataset or its path.
+        out_path (str): The path to the output resampled raster file.
+        **kwargs: Additional arguments for gdal.WarpOptions().
+
+    Returns:
+        str: The path to the output resampled raster file.
+    """
     ds, ras = ds_name(ds)
     out_file = context_file(ras, out_path)
 
@@ -56,6 +77,16 @@ def resample(ds, out_path, **kwargs):
 
 
 def mosaic(rasters, out_path, **kwargs):
+    """Mosaics multiple raster datasets into a single file.
+
+    Args:
+        rasters (list or str): A list of raster file paths or a single path.
+        out_path (str): The path to the output mosaic raster file.
+        **kwargs: Additional arguments for gdal.WarpOptions().
+
+    Returns:
+        str: The path to the output mosaic raster file.
+    """
     if isinstance(rasters, (str, Path)):
         rasters = [str(rasters)]
     else:
@@ -97,6 +128,16 @@ def mosaic(rasters, out_path, **kwargs):
 
 
 def project_raster(ds, out_path, **kwargs):
+    """Reprojects a raster dataset to a new spatial reference system.
+
+    Args:
+        ds (gdal.Dataset or str): The input raster dataset or its path.
+        out_path (str): The path to the output reprojected raster file.
+        **kwargs: Additional arguments for gdal.WarpOptions().
+
+    Returns:
+        str: The path to the output reprojected raster file.
+    """
     ds, ras = ds_name(ds)
     out_file = context_file(ras, out_path)
 
@@ -126,6 +167,18 @@ def project_raster(ds, out_path, **kwargs):
 
 
 def grib_to_tif(ds, out_path=None, **kwargs):
+    """Converts a GRIB file to a GeoTIFF file.
+
+    Args:
+        ds (gdal.Dataset or str): The input GRIB dataset or its path.
+        out_path (str, optional): The path to the output GeoTIFF file. If None, the output
+                                  file is saved in the same directory as the input file.
+                                  Defaults to None.
+        **kwargs: Additional arguments for gdal.WarpOptions().
+
+    Returns:
+        str: The path to the output GeoTIFF file.
+    """
     ds, ras = ds_name(ds)
 
     if os.path.splitext(os.path.basename(ras))[1] != '.grib':
@@ -151,6 +204,20 @@ def grib_to_tif(ds, out_path=None, **kwargs):
 
 
 def tif_copy_assign(out_file, ds_eg, array, srs=None, nodata=None):
+    """Creates a new GeoTIFF file with the same georeferencing as an example dataset.
+
+    Args:
+        out_file (str): The path to the output GeoTIFF file.
+        ds_eg (gdal.Dataset or str): The example raster dataset or its path.
+        array (np.ndarray): The numpy array to write to the new file.
+        srs (osr.SpatialReference, optional): The spatial reference system. If None, it is
+                                              read from the example dataset. Defaults to None.
+        nodata (float, optional): The nodata value. If None, it is read from the example
+                                  dataset. Defaults to None.
+
+    Returns:
+        str: The path to the output GeoTIFF file.
+    """
     out_file = str(out_file)
     if os.path.exists(out_file):
         return out_file

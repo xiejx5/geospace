@@ -4,6 +4,15 @@ from geospace.projection import read_srs
 
 
 def polygonize(ds, shp_path):
+    """Converts a raster dataset to a polygon shapefile.
+
+    Args:
+        ds (gdal.Dataset): The input raster dataset.
+        shp_path (str): The path to the output shapefile.
+
+    Returns:
+        str: The path to the output shapefile.
+    """
     if os.path.exists(shp_path):
         return
     # mapping between gdal type and ogr field type

@@ -4,6 +4,15 @@ from osgeo import gdal, ogr, osr
 
 
 def read_srs(srs):
+    """Reads a spatial reference system (SRS) from various sources.
+
+    Args:
+        srs (osr.SpatialReference, str, gdal.Dataset, ogr.DataSource, ogr.Layer, or list):
+            The source of the SRS.
+
+    Returns:
+        osr.SpatialReference: The spatial reference system object.
+    """
     if isinstance(srs, osr.SpatialReference):
         return srs
     elif isinstance(srs, str):
@@ -33,6 +42,15 @@ def read_srs(srs):
 
 
 def coord_trans(in_srs, out_srs):
+    """Creates a coordinate transformation object.
+
+    Args:
+        in_srs: The input spatial reference system.
+        out_srs: The output spatial reference system.
+
+    Returns:
+        osr.CoordinateTransformation: The coordinate transformation object.
+    """
     inSpatialRef, outSpatialRef = read_srs(in_srs), read_srs(out_srs)
     # create the CoordinateTransformation
     if int(gdal.__version__[0]) >= 3:

@@ -14,6 +14,14 @@ def connected_to_internet(url='http://www.google.com/', timeout=1):
 
 # gee initialization
 def gee_init(proxy='http://127.0.0.1:7890'):
+    """Initializes the Google Earth Engine API.
+
+    This function checks for an internet connection and sets a proxy if needed.
+    It then authenticates and initializes the Earth Engine API.
+
+    Args:
+        proxy (str, optional): The proxy URL to use. Defaults to 'http://127.0.0.1:7890'.
+    """
     import ee
 
     if not connected_to_internet():
@@ -28,18 +36,24 @@ def gee_init(proxy='http://127.0.0.1:7890'):
 
 
 def gee_export_tif(image, filename, timeout=300, **params):
-    """Export as tif, must be the original image, instead of the reprojected one
+    """Exports a Google Earth Engine image as a GeoTIFF file.
+
+    This function downloads the image directly by generating a download URL.
+    It is suitable for smaller images. For larger images, consider using
+    `gee_to_drive`.
 
     Args:
-        fc (ee.FeatureCollection): the spatial scope of the exported tif
-        image (ee.Image): the image that would be exported
-        filename (string): exported path
-        crs (str, optional): A default CRS string to use for any bands that do not explicitly specify one
-        crs_transform ([type]): control the spatial resolution and alignment, e.g., [1, 0, -180, 0, -1, 90]
-        region (object, optional): A polygon specifying a region to download
-        filePerBand (bool, optional): Whether to produce a different GeoTIFF per band
-
-        details are in ee.Image.getDownloadURL()
+        image (ee.Image): The Earth Engine image to export.
+        filename (str): The path to the output GeoTIFF file.
+        timeout (int, optional): The timeout for the download in seconds. Defaults to 300.
+        **params: Additional parameters for ee.Image.getDownloadURL().
+            crs (str, optional): A CRS string to use for bands that do not specify one.
+            crs_transform (list, optional): A list of 6 numbers to control the spatial
+                resolution and alignment, e.g., [1, 0, -180, 0, -1, 90].
+            region (ee.Geometry, list, or str, optional): A polygon specifying a region
+                to download. Can be set to 'global' to use the image's full geometry.
+            filePerBand (bool, optional): If True, produces a different GeoTIFF per band.
+                Defaults to False.
     """
     import ee
     import requests
@@ -102,32 +116,35 @@ def gee_export_tif(image, filename, timeout=300, **params):
 
 
 def gee_to_drive(image, **params):
-    """wrapper for GEE Export.image.toDrive
+    """Exports a Google Earth Engine image to Google Drive.
+
+    This is a wrapper for ee.batch.Export.image.toDrive() that provides
+    shortcuts for common export configurations.
 
     Args:
-        image: The image to be exported.
-        description: Human-readable name of the task.
-        folder: The name of a unique folder in your Drive account to
-            export into. Defaults to the root of the drive.
-        dimensions: The dimensions of the exported image. Takes either a
-            single positive integer as the maximum dimension or "WIDTHxHEIGHT"
-            where WIDTH and HEIGHT are each positive integers.
-        region: The lon,lat coordinates for a LinearRing or Polygon
-            specifying the region to export. Can be specified as a nested
-            lists of numbers or a serialized string. Defaults to the image's
-            region.
-        crs: The coordinate reference system of the exported image's
-            projection. Defaults to the image's default projection.
-        crsTransform: A comma-separated string of 6 numbers describing
-            the affine transform of the coordinate reference system of the
-            exported image's projection, in the order: xScale, xShearing,
-            xTranslation, yShearing, yScale and yTranslation. Defaults to
-            the image's native CRS transform.
-        maxPixels: The maximum allowed number of pixels in the exported
-            image. The task will fail if the exported region covers more
-            pixels in the specified projection. Defaults to 100,000,000.
-
-        details are in Export.image.toDrive()
+        image (ee.Image): The image to be exported.
+        **params: Keyword arguments for ee.batch.Export.image.toDrive().
+            description (str, optional): Human-readable name of the task.
+                Defaults to the first band name of the image.
+            folder (str, optional): The name of a folder in your Drive account.
+            dimensions (str or int, optional): The dimensions of the exported image.
+                Can be a single integer for max dimension or "WIDTHxHEIGHT".
+                If region is 'global' or 'nonATA', can be set to 'default' for
+                automatic dimensions.
+            region (list, str, or ee.Geometry, optional): The region to export.
+                Can be specified as coordinates. Special string values are also
+                accepted:
+                - 'global': Exports the entire globe ([-180, -90, 180, 90]).
+                - 'nonATA': Exports the globe excluding Antarctica ([-180, -60, 180, 89]).
+                Defaults to the image's region.
+            crs (str, optional): The coordinate reference system. Defaults to 'EPSG:4326'.
+            crsTransform (list or str, optional): The affine transform of the CRS.
+                Can be specified as a list of 6 numbers. A special string value
+                is also accepted:
+                - 'ERA5_LAND': Uses the transform [0.1, 0, -180.05, 0, -0.1, 90.05].
+                Defaults to the image's native transform.
+            maxPixels (int, optional): The maximum number of pixels to export.
+                Defaults to 1e13.
     """
     import ee
 
@@ -160,14 +177,21 @@ def gee_to_drive(image, **params):
 def gee_export_csv(
     fc, image, columns=['STAID', '.*mean'], return_url=False, to_drive=None, **kwargs
 ):
-    """export a csv containing the basin average value
+    """Exports zonal statistics from a Google Earth Engine image to a CSV file.
 
     Args:
-        fc (ee.FeatureCollection): e.g. basins
-        image (ee.Image): e.g. DEM
+        fc (ee.FeatureCollection): The feature collection to calculate statistics for (e.g., basins).
+        image (ee.Image): The image to extract values from (e.g., DEM).
+        columns (list, optional): The columns to include in the output.
+                                  Defaults to ['STAID', '.*mean'].
+        return_url (bool, optional): If True, return the download URL instead of a DataFrame.
+                                     Defaults to False.
+        to_drive (str, optional): If not None, export the table to Google Drive with this
+                                  description. Defaults to None.
+        **kwargs: Additional parameters for ee.Image.reduceRegions().
 
     Returns:
-        DataFrame: it has columns of 'STAID' and 'mean'
+        pandas.DataFrame or str: A DataFrame with the zonal statistics or the download URL.
     """
     import ee
     import pandas as pd
@@ -194,15 +218,16 @@ def gee_export_csv(
 
 
 def gee_soilgrids(band):
-    """download and preprocess soilgrids from google earth engine
+    """Downloads and preprocesses SoilGrids data from Google Earth Engine.
 
+    This function calculates a depth-weighted average of the specified soil property.
     https://git.wur.nl/isric/soilgrids/soilgrids.notebooks/-/blob/master/markdown/access_on_gee.md
 
     Args:
-        band (string): one of ['bdod', 'cfvo', 'clay', 'sand', 'silt']
+        band (str): The SoilGrids band to download. One of ['bdod', 'cfvo', 'clay', 'sand', 'silt'].
 
     Returns:
-        image: ee.Image contains specific band
+        ee.Image: An Earth Engine image containing the preprocessed SoilGrids data.
     """
     import ee
 
@@ -231,6 +256,16 @@ def gee_soilgrids(band):
 
 
 def gee_wind(image, name='wind_10m'):
+    """Calculates wind speed from u and v components of wind.
+
+    Args:
+        image (ee.Image): An Earth Engine image with 'u_component_of_wind_10m' and
+                          'v_component_of_wind_10m' bands.
+        name (str, optional): The name of the output wind speed band. Defaults to 'wind_10m'.
+
+    Returns:
+        ee.Image: An Earth Engine image with the calculated wind speed.
+    """
     wind_10m = image.expression(
         'sqrt(u**2 + v**2)',
         {
@@ -243,9 +278,14 @@ def gee_wind(image, name='wind_10m'):
 
 
 def gee_group_by_month(images):
-    # Group by month, and then reduce within groups by mean()
-    # the result is an ImageCollection with one image for each
-    # month.
+    """Groups an ImageCollection by month and calculates the mean for each month.
+
+    Args:
+        images (ee.ImageCollection): The input ImageCollection.
+
+    Returns:
+        ee.ImageCollection: An ImageCollection with one image for each month.
+    """
     import ee
 
     months = ee.List.sequence(1, 12)
@@ -260,6 +300,14 @@ def gee_group_by_month(images):
 
 
 def gee_seasonality_index(images):
+    """Calculates the seasonality index of an ImageCollection.
+
+    Args:
+        images (ee.ImageCollection): The input ImageCollection.
+
+    Returns:
+        ee.Image: An image representing the seasonality index.
+    """
     avr = images.mean()
     SI = (
         gee_group_by_month(images)

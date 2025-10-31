@@ -16,6 +16,18 @@ def shp2ras(
     nodata=0,
     rasterize_option=['ALL_TOUCHED=TRUE'],
 ):
+    """Converts a shapefile to a raster dataset.
+
+    Args:
+        shp (str): The path to the input shapefile.
+        out_path (str): The path to the output raster file.
+        trans (tuple): The geotransform for the output raster.
+        attr (str, optional): The attribute field to burn into the raster.
+                               Defaults to 'logK_Ice_x'.
+        nodata (int, optional): The nodata value for the output raster. Defaults to 0.
+        rasterize_option (list, optional): A list of rasterization options.
+                                           Defaults to ['ALL_TOUCHED=TRUE'].
+    """
     out_file = context_file(shp, out_path)
 
     if Path(out_file).exists():
@@ -58,6 +70,18 @@ def rasterize(
     rasterize_option=['ALL_TOUCHED=TRUE'],
     **kwargs,
 ):
+    """Rasterizes a shapefile to match the extent and resolution of an example raster.
+
+    Args:
+        shp (str): The path to the input shapefile.
+        attr (str): The attribute field to burn into the raster.
+        out_path (str): The path to the output raster file.
+        ds_eg (gdal.Dataset or str): The example raster dataset or its path.
+        tem_path (str): The path to a directory for temporary files.
+        rasterize_option (list, optional): A list of rasterization options.
+                                           Defaults to ['ALL_TOUCHED=TRUE'].
+        **kwargs: Additional arguments for gdal.WarpOptions().
+    """
     # create out put name
     out_file = os.path.join(
         out_path, os.path.splitext(os.path.basename(shp))[0] + '.tif'
@@ -106,6 +130,18 @@ def rasterize(
 
 
 def download_tiles(shp, tile_pixel):
+    """Identifies the tiles that intersect with a shapefile.
+
+    This function is useful for determining which tiles to download from a tiled web service.
+
+    Args:
+        shp (str): The path to the input shapefile.
+        tile_pixel (float): The size of the tiles in pixels.
+
+    Returns:
+        tuple or None: A tuple containing the longitude and latitude of the intersecting tiles,
+                       or None if there are no intersecting tiles.
+    """
     # create the output layer
     outDataSet = shp_projection(shp)
     outLayer = outDataSet.GetLayer()
@@ -134,6 +170,12 @@ def download_tiles(shp, tile_pixel):
 
 
 def masked_outside(shp, ds):
+    """Masks the areas of a raster dataset that are outside a shapefile.
+
+    Args:
+        shp (str): The path to the input shapefile.
+        ds (gdal.Dataset or str): The input raster dataset or its path.
+    """
     import psutil
 
     ds, ras = ds_name(ds)

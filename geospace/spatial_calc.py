@@ -3,37 +3,36 @@ from geospace.utils import ds_name
 
 
 def grid_area(lon_res, lat_res, lat_upper, n_lat):
-    """
-    Calculate the area of a cell, in meters^2, on a lat/lon grid.
+    """Calculates the area of grid cells on a lat/lon grid in square meters.
 
-    This applies the following equation from Santini et al. 2010.
+    This function implements the equation from Santini et al. 2010 to calculate
+    the area of a grid cell on the WGS-84 ellipsoid. The formula is:
 
     S = (λ_2 - λ_1)(sinφ_2 - sinφ_1)R^2
 
-    S = surface area of cell on sphere
-    λ_1, λ_2 = authalic longitude in radians
-    φ_1, φ_2 = authalic latitude in radians
-    R = Earth's authalic radius
+    where:
+    - S is the surface area of the cell.
+    - λ_1, λ_2 are the authalic longitudes in radians.
+    - φ_1, φ_2 are the authalic latitudes in radians.
+    - R is the Earth's authalic radius.
 
-    Earth's authalic radius (meaning "equal area") is the
-    radius of a hypothetical perfect sphere that has the
-    same surface area as the reference ellipsoid.
-    Authalic lon/lat are converted from geodetic lon/lat.
+    The authalic radius is the radius of a perfect sphere with the same surface
+    area as the reference ellipsoid.
 
-    Santini, M., Taramelli, A., & Sorichetta, A. (2010). ASPHAA:
-    A GIS-Based Algorithm to Calculate Cell Area on a Latitude-
-    Longitude (Geographic) Regular Grid. Transactions in GIS.
+    Reference:
+    Santini, M., Taramelli, A., & Sorichetta, A. (2010). ASPHAA: A GIS-Based
+    Algorithm to Calculate Cell Area on a Latitude-Longitude (Geographic)
+    Regular Grid. Transactions in GIS.
     https://doi.org/10.1111/j.1467-9671.2010.01200.x
 
     Args:
-        lon_res float: resolution of longitude
-        lat_res float: resolution of latitude
-        lat_upper float: upper geodetic latitude
-        n_lat int: number of a column grids that from the
-        lat_upper to (lat_upper - lat_res * n_lat)
+        lon_res (float): The longitude resolution in degrees.
+        lat_res (float): The latitude resolution in degrees.
+        lat_upper (float): The upper geodetic latitude of the grid.
+        n_lat (int): The number of latitude rows.
 
     Returns:
-        np.ndarray[float]: area of the column grids
+        np.ndarray: An array containing the area of each grid cell in square meters.
     """
 
     # semi-major axis and flattening of the WGS 84
@@ -61,6 +60,17 @@ def grid_area(lon_res, lat_res, lat_upper, n_lat):
 
 
 def area_per_row(trans, proj_wkt, n_rows, offset=0):
+    """Calculates the area of each row in a raster dataset.
+
+    Args:
+        trans (tuple): The geotransform of the raster dataset.
+        proj_wkt (str): The projection of the raster dataset in WKT format.
+        n_rows (int): The number of rows in the raster dataset.
+        offset (int, optional): The row offset. Defaults to 0.
+
+    Returns:
+        np.ndarray: An array containing the area of each row in square kilometers.
+    """
     if 'PROJCS' in proj_wkt:
         cell_area = abs(trans[1] * trans[5]) / 1000000
         return np.full(n_rows, cell_area)
@@ -72,6 +82,19 @@ def area_per_row(trans, proj_wkt, n_rows, offset=0):
 
 
 def real_area(ds, rows, offset=None, return_row_area=False):
+    """Calculates the total area of a set of rows in a raster dataset.
+
+    Args:
+        ds (gdal.Dataset or str): The raster dataset or its path.
+        rows (np.ndarray): An array of row indices.
+        offset (int, optional): The row offset. If None, it is calculated from the
+                                minimum row index. Defaults to None.
+        return_row_area (bool, optional): If True, return the area of each row.
+                                          Defaults to False.
+
+    Returns:
+        float or np.ndarray: The total area in square kilometers, or an array of row areas.
+    """
     rows = np.array(rows).flatten()
     if len(rows) == 0:
         return np.array([])
@@ -103,6 +126,17 @@ def real_area(ds, rows, offset=None, return_row_area=False):
 
 
 def distance(a, b):
+    """Calculates the distance between two points on the WGS-84 ellipsoid.
+
+    This function uses Vincenty's formula to calculate the distance.
+
+    Args:
+        a (tuple): The longitude and latitude of the first point (lon, lat).
+        b (tuple): The longitude and latitude of the second point (lon, lat).
+
+    Returns:
+        float: The distance between the two points in kilometers.
+    """
     import math
 
     ELLIPSOIDS = {

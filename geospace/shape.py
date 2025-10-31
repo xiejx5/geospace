@@ -7,12 +7,36 @@ from geospace.projection import read_srs, coord_trans
 
 
 def shp_buffer(in_shp, buffdist, out_shp=None, in_srs=None):
+    """Buffers the geometries in a shapefile.
+
+    Args:
+        in_shp (str or ogr.Layer): The input shapefile path or OGR layer.
+        buffdist (float): The buffer distance.
+        out_shp (str, optional): The path to the output shapefile. If None, an in-memory
+                                 DataSource is returned. Defaults to None.
+        in_srs (str, optional): The input spatial reference system. Defaults to None.
+
+    Returns:
+        ogr.DataSource or str: The output OGR DataSource or the path to the output shapefile.
+    """
     return shp_geom_map(
         in_shp, out_shp, in_srs=in_srs, func=lambda geom: geom.Buffer(float(buffdist))
     )
 
 
 def shp_projection(in_shp, out_shp=None, in_srs=WGS84, out_srs=WGS84):
+    """Reprojects a shapefile to a new spatial reference system.
+
+    Args:
+        in_shp (str or ogr.Layer): The input shapefile path or OGR layer.
+        out_shp (str, optional): The path to the output shapefile. If None, an in-memory
+                                 DataSource is returned. Defaults to None.
+        in_srs (str, optional): The input spatial reference system. Defaults to WGS84.
+        out_srs (str, optional): The output spatial reference system. Defaults to WGS84.
+
+    Returns:
+        ogr.DataSource or str: The output OGR DataSource or the path to the output shapefile.
+    """
     # Filename of input OGR file
     if isinstance(in_shp, ogr.Layer):
         inLayer = in_shp
@@ -37,6 +61,17 @@ def shp_projection(in_shp, out_shp=None, in_srs=WGS84, out_srs=WGS84):
 
 
 def shp_filter(in_shp, where, out_shp=None):
+    """Filters a shapefile based on an attribute query.
+
+    Args:
+        in_shp (str): The path to the input shapefile.
+        where (str): The SQL-like WHERE clause for the attribute query.
+        out_shp (str, optional): The path to the output shapefile. If None, an in-memory
+                                 DataSource is returned. Defaults to None.
+
+    Returns:
+        ogr.DataSource or str: The output OGR DataSource or the path to the output shapefile.
+    """
     ds_shp = ogr.Open(in_shp, 0)
     layer = ds_shp.GetLayer()
     layer.SetAttributeFilter(where)
@@ -54,6 +89,19 @@ def shp_filter(in_shp, where, out_shp=None):
 
 
 def shp_geom_map(in_shp, out_shp=None, func=None, in_srs=None, out_srs=None):
+    """Applies a function to the geometries of a shapefile.
+
+    Args:
+        in_shp (str or ogr.Layer): The input shapefile path or OGR layer.
+        out_shp (str, optional): The path to the output shapefile. If None, an in-memory
+                                 DataSource is returned. Defaults to None.
+        func (function, optional): The function to apply to each geometry. Defaults to None.
+        in_srs (str, optional): The input spatial reference system. Defaults to None.
+        out_srs (str, optional): The output spatial reference system. Defaults to None.
+
+    Returns:
+        ogr.DataSource or str: The output OGR DataSource or the path to the output shapefile.
+    """
     # Filename of input OGR file
     if isinstance(in_shp, ogr.Layer):
         inLayer = in_shp
@@ -117,6 +165,20 @@ def shp_geom_map(in_shp, out_shp=None, func=None, in_srs=None, out_srs=None):
 
 
 def shp_weighted_mean(in_shp, clip_shp, field, out_shp=None, save_cache=False):
+    """Calculates the area-weighted mean of a field in a shapefile, clipped by another shapefile.
+
+    Args:
+        in_shp (str or ogr.DataSource): The input shapefile path or OGR DataSource.
+        clip_shp (str): The path to the clipping shapefile.
+        field (str): The field to calculate the weighted mean for.
+        out_shp (str, optional): The path to the output shapefile. If None, an in-memory
+                                 DataSource is used. Defaults to None.
+        save_cache (bool, optional): If True, save intermediate files to a 'cache' directory.
+                                     Defaults to False.
+
+    Returns:
+        float: The calculated area-weighted mean.
+    """
     # get layer of in_shp
     if isinstance(in_shp, str):
         ds = ogr.Open(in_shp)
