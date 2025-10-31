@@ -208,8 +208,8 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, nodata=None, **kwargs):
     ).filled(np.nan)
 
 
-def basin_average_worker(rasters, shp, is_unique, s, t, field, sel, **kwargs):
-    where = f'{field}={f"'{sel.replace("'", "''")}'" if isinstance(sel, str) else sel}'
+def basin_average_worker(rasters, shp, is_unique, s, t, col, sel, **kwargs):
+    where = f'{col}={f"'{sel.replace("'", "''")}'" if isinstance(sel, str) else sel}'
     ds_shp = shp_filter(shp, where)
     one_out = np.full(t[-1], np.nan)
     for i, ras in enumerate(rasters):
@@ -218,7 +218,40 @@ def basin_average_worker(rasters, shp, is_unique, s, t, field, sel, **kwargs):
     return one_out
 
 
-def basin_average(rasters, shp, field='STAID', sel=None, **kwargs):
+def basin_average(rasters, shp, col='STAID', sel=None, parallel=True, **kwargs):
+    """Calculate area-weighted average of rasters for each polygon in a shapefile.
+
+    This function is optimized for processing a large number of rasters against
+    multiple polygons (basins). It uses multiprocessing to parallelize the
+    computation over the polygons.
+
+    Parameters
+    ----------
+    rasters : str, Path, or list of str/Path
+        A single raster file path or a list of raster file paths.
+    shp : str or Path
+        Path to the shapefile containing the polygons (e.g., basins).
+    col : str, optional
+        The column name in the shapefile's attribute table to use for selecting
+        polygons. Defaults to 'STAID'. If `sel` is None, this is changed to 'FID'.
+    sel : list of str or int, optional
+        A list of values from the `col` column to select specific polygons for
+        processing. If None, all polygons in the shapefile will be processed.
+        Defaults to None.
+    parallel : bool, optional
+        If True (default), use multiprocessing to parallelize the computation.
+    **kwargs
+        Additional keyword arguments passed to `geospace.zonal_stats.extract` and
+        `geospace.zonal_stats._clip`.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A DataFrame where the index contains the raster names and the columns
+        correspond to the selected polygon identifiers (`sel`). The values are
+        the calculated area-weighted averages.
+
+    """
     import tqdm
     import pandas as pd
     from multiprocessing import get_context
@@ -233,7 +266,7 @@ def basin_average(rasters, shp, field='STAID', sel=None, **kwargs):
         layer = ds.GetLayer()
         layer.ResetReading()
         sel = [feature.GetFID() for feature in layer]
-        field = 'FID'
+        col = 'FID'
     if isinstance(sel, (str, int)):
         sel = [sel]
 
@@ -249,7 +282,7 @@ def basin_average(rasters, shp, field='STAID', sel=None, **kwargs):
     sort_names, s, t, inverse = rep_name(sort_rasters, sort_idxs=sort_idxs)
 
     cpu_used = max(min(N_CPU, len(sel)), 1)
-    if cpu_used == 1 or kwargs.pop('parallel', True) == False:
+    if cpu_used == 1 or parallel is False:
         output = list(
             tqdm.tqdm(
                 (
@@ -260,7 +293,7 @@ def basin_average(rasters, shp, field='STAID', sel=None, **kwargs):
                         is_unique,
                         s,
                         t,
-                        field,
+                        col,
                         **kwargs,
                     )(f)
                     for f in sel
@@ -280,7 +313,7 @@ def basin_average(rasters, shp, field='STAID', sel=None, **kwargs):
                             is_unique,
                             s,
                             t,
-                            field,
+                            col,
                             **kwargs,
                         ),
                         sel,
