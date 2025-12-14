@@ -231,7 +231,11 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, nodata=None, **kwargs):
 
 
 def basin_average_worker(rasters, shp, is_unique, s, t, by, sel, **kwargs):
-    where = f'{by}={f"'{sel.replace("'", "''")}'" if isinstance(sel, str) else sel}'
+    if isinstance(sel, (int, float)):
+        where = f'{by}={sel}'
+    else:
+        clean_sel = str(sel).replace("'", "''")
+        where = f"{by}='{clean_sel}'"
     ds_shp = shp_filter(shp, where)
     one_out = np.full(t[-1], np.nan)
     for i, ras in enumerate(rasters):
@@ -277,7 +281,7 @@ def basin_average(rasters, shp, by='STAID', sel=None, parallel=True, **kwargs):
         layer.ResetReading()
         sel = [feature.GetFID() for feature in layer]
         by = 'FID'
-    if isinstance(sel, (str, int)):
+    if isinstance(sel, str) or not hasattr(sel, '__iter__'):
         sel = [sel]
 
     arr = np.array([gdal.Open(ras).GetGeoTransform() for ras in rasters])
