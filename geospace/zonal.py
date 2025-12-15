@@ -1,8 +1,8 @@
 import os
+import inspect
 import numpy as np
 from pathlib import Path
 from osgeo import gdal, ogr
-from functools import partial
 from geospace.stats import mean
 from geospace.projection import read_srs
 from geospace.boundary import _enlarge_bound
@@ -101,7 +101,7 @@ def _clip(
             ds_rect.GetGeoTransform(), 1, n_x, n_y, outLayer, rasterize_option
         )
         block_write(ds_rect, _map_burn, is_in)
-        return ds_rect, is_in
+        return ds_rect, is_in, ds_rect.GetGeoTransform()
 
     # get a rectangle containing the shapefile
     rect_trans = list(t)
@@ -161,7 +161,7 @@ def _clip(
             burn_ds.WriteArray(burn_data)
             burn_ds = None
 
-    return rect, burn_data
+    return rect, burn_data, rect_trans
 
 
 def extract(ras, shp, out_path=None, nodata=None, ras_srs=WGS84, func=mean, **kwargs):
@@ -177,10 +177,10 @@ def extract(ras, shp, out_path=None, nodata=None, ras_srs=WGS84, func=mean, **kw
         out_path (str, optional): The path to the output clipped raster file. If None,
                                   the function returns the area-weighted average.
                                   Defaults to None.
-        ras_srs (str, optional): The spatial reference system of the raster.
-                                 Defaults to WGS84.
         nodata (float, optional): The nodata value for the raster. If None, it is
                                   read from the raster. Defaults to None.
+        ras_srs (str, optional): The spatial reference system of the raster.
+                                 Defaults to WGS84.
         func (callable, optional): A function to calculate statistics.
                                         Signature: func(arr, weights).
                                         Defaults to area-weighted mean.
@@ -219,24 +219,28 @@ def extract(ras, shp, out_path=None, nodata=None, ras_srs=WGS84, func=mean, **kw
         raise (ValueError('nodata must be initialized'))
 
     # clip with the whole shapefile
-    rect, burn_data = _clip(ds, outLayer, out_file, **kwargs)
+    rect, burn_data, rect_trans = _clip(ds, outLayer, out_file, **kwargs)
     if out_file is not None:
         return rect.GetDescription()
 
-    # area weighted statistics
+    # create parameters for statistics
     not_in = np.broadcast_to(np.logical_not(burn_data.astype(bool)), rect.shape)
-    mask = (rect == nodata) | not_in | (~np.isfinite(rect))
-    arr = np.ma.masked_array(rect, mask)
+    arr = np.ma.masked_array(rect, (rect == nodata) | not_in | (~np.isfinite(rect)))
     arr = arr[np.newaxis, :, :] if arr.ndim != 3 else arr
-    arr = arr.reshape(arr.shape[0], -1)
-    weights = burn_data.ravel()
+    params = {'weights': burn_data, 'trans': rect_trans}
 
     if not isinstance(func, (list, tuple)):
         func = [func]
-    return np.array([np.atleast_1d(f(arr, weights)) for f in func])
+
+    results = []
+    for f in func:
+        func_params = inspect.signature(f).parameters
+        func_kwargs = {k: v for k, v in params.items() if k in func_params}
+        results.append(np.atleast_1d(f(arr, **func_kwargs)))
+    return np.array(results)
 
 
-def reduce_worker(rasters, shp, is_unique, s, t, by, func, sel, **kwargs):
+def reduce_worker(rasters, shp, is_unique, s, t, func, by, sel, **kwargs):
     # filter shapefile to select one polygon
     if isinstance(sel, (int, float)):
         where = f'{by}={sel}'
@@ -249,12 +253,12 @@ def reduce_worker(rasters, shp, is_unique, s, t, by, func, sel, **kwargs):
     one_polygon = np.full((len(func), t[-1]), np.nan)
     for i, ras in enumerate(rasters):
         kwargs['reuse_cache'] = False if is_unique[i] else True
-        res = extract(ras, ds_shp, ext=sel, func=func, **kwargs)
+        res = extract(ras, ds_shp, func=func, ext=sel, **kwargs)
         one_polygon[:, s[i] : t[i]] = res
     return one_polygon
 
 
-def reduce(rasters, shp, by='STAID', sel=None, func=mean, parallel=True, **kwargs):
+def reduce(rasters, shp, func=mean, by='STAID', sel=None, parallel=True, **kwargs):
     """Calculates the area-weighted average of rasters for each polygon in a shapefile.
 
     This function is optimized for processing a large number of rasters against
@@ -264,14 +268,14 @@ def reduce(rasters, shp, by='STAID', sel=None, func=mean, parallel=True, **kwarg
     Args:
         rasters (str, Path, or list): A single raster file path or a list of paths.
         shp (str or Path): The path to the shapefile containing the polygons.
+        func (callable, optional): A function or list of functions to calculate stats.
+                                   Signature: func(arr, weights).
+                                   Defaults to area-weighted mean (geospace.stats.mean).
         by (str, optional): The column name in the shapefile's attribute table to
                             use for selecting polygons. Defaults to 'STAID'.
         sel (list, optional): A list of values from the `by` column to select
                               specific polygons. If None, all polygons are processed.
                               Defaults to None.
-        func (callable, optional): A function or list of functions to calculate stats.
-                                   Signature: func(arr, weights).
-                                   Defaults to area-weighted mean (geospace.stats.mean).
         parallel (bool, optional): If True, use multiprocessing. Defaults to True.
         **kwargs: Additional keyword arguments for `geospace.zonal.extract`.
 
@@ -281,6 +285,7 @@ def reduce(rasters, shp, by='STAID', sel=None, func=mean, parallel=True, **kwarg
     """
     import pandas as pd
     from tqdm import tqdm
+    from functools import partial
     from multiprocessing import get_context
 
     if isinstance(rasters, (str, Path)):
@@ -313,7 +318,7 @@ def reduce(rasters, shp, by='STAID', sel=None, func=mean, parallel=True, **kwarg
 
     # create worker function
     worker = partial(
-        reduce_worker, sort_rasters, shp, is_unique, s, t, by, func, **kwargs
+        reduce_worker, sort_rasters, shp, is_unique, s, t, func, by, **kwargs
     )
 
     # if parallel is False or only one CPU is used, use single process
