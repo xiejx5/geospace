@@ -7,7 +7,12 @@ from .projection import read_srs, coord_trans
 from .ras_to_shp import polygonize
 from .shp_to_ras import shp2ras, rasterize, download_tiles, masked_outside
 from .spatial_calc import grid_area, area_per_row, real_area, distance
-from .zonal_stats import extract, basin_average
+from .zonal import extract, reduce
+from . import stats
+
+
+# alias for backward compatibility
+basin_average = reduce
 
 from .raster import (
     convert_uint8,

@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 from osgeo import gdal, ogr
 from functools import partial
+from geospace.stats import mean
 from geospace.projection import read_srs
 from geospace.boundary import _enlarge_bound
 from geospace.spatial_calc import area_per_row
@@ -163,7 +164,7 @@ def _clip(
     return rect, burn_data
 
 
-def extract(ras, shp, out_path=None, ras_srs=WGS84, nodata=None, **kwargs):
+def extract(ras, shp, out_path=None, nodata=None, ras_srs=WGS84, func=mean, **kwargs):
     """Extracts raster values within a shapefile.
 
     This function can either clip the raster to the shapefile's extent and mask
@@ -180,11 +181,14 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, nodata=None, **kwargs):
                                  Defaults to WGS84.
         nodata (float, optional): The nodata value for the raster. If None, it is
                                   read from the raster. Defaults to None.
+        func (callable, optional): A function to calculate statistics.
+                                        Signature: func(arr, weights).
+                                        Defaults to area-weighted mean.
         **kwargs: Additional keyword arguments for the clipping process.
 
     Returns:
-        str or np.ndarray: If out_path is provided, the path to the output raster file.
-                           Otherwise, an array of area-weighted averages for each band.
+        str or np.ndarray or list: If out_path is provided, the path to the output raster file.
+                           Otherwise, an array (or list of arrays) of metrics for each band.
     """
     ds, ras = ds_name(ras)
     if out_path is None:
@@ -224,27 +228,33 @@ def extract(ras, shp, out_path=None, ras_srs=WGS84, nodata=None, **kwargs):
     mask = (rect == nodata) | not_in | (~np.isfinite(rect))
     arr = np.ma.masked_array(rect, mask)
     arr = arr[np.newaxis, :, :] if arr.ndim != 3 else arr
+    arr = arr.reshape(arr.shape[0], -1)
+    weights = burn_data.ravel()
 
-    return np.ma.average(
-        arr.reshape(arr.shape[0], -1), weights=burn_data.ravel(), axis=1
-    ).filled(np.nan)
+    if not isinstance(func, (list, tuple)):
+        func = [func]
+    return np.array([np.atleast_1d(f(arr, weights)) for f in func])
 
 
-def basin_average_worker(rasters, shp, is_unique, s, t, by, sel, **kwargs):
+def reduce_worker(rasters, shp, is_unique, s, t, by, func, sel, **kwargs):
+    # filter shapefile to select one polygon
     if isinstance(sel, (int, float)):
         where = f'{by}={sel}'
     else:
         clean_sel = str(sel).replace("'", "''")
         where = f"{by}='{clean_sel}'"
     ds_shp = shp_filter(shp, where)
-    one_out = np.full(t[-1], np.nan)
+
+    # extract statistics for the one polygon
+    one_polygon = np.full((len(func), t[-1]), np.nan)
     for i, ras in enumerate(rasters):
         kwargs['reuse_cache'] = False if is_unique[i] else True
-        one_out[s[i] : t[i]] = extract(ras, ds_shp, ext=sel, **kwargs)
-    return one_out
+        res = extract(ras, ds_shp, ext=sel, func=func, **kwargs)
+        one_polygon[:, s[i] : t[i]] = res
+    return one_polygon
 
 
-def basin_average(rasters, shp, by='STAID', sel=None, parallel=True, **kwargs):
+def reduce(rasters, shp, by='STAID', sel=None, func=mean, parallel=True, **kwargs):
     """Calculates the area-weighted average of rasters for each polygon in a shapefile.
 
     This function is optimized for processing a large number of rasters against
@@ -259,21 +269,27 @@ def basin_average(rasters, shp, by='STAID', sel=None, parallel=True, **kwargs):
         sel (list, optional): A list of values from the `by` column to select
                               specific polygons. If None, all polygons are processed.
                               Defaults to None.
+        func (callable, optional): A function or list of functions to calculate stats.
+                                   Signature: func(arr, weights).
+                                   Defaults to area-weighted mean (geospace.stats.mean).
         parallel (bool, optional): If True, use multiprocessing. Defaults to True.
-        **kwargs: Additional keyword arguments for `geospace.zonal_stats.extract`.
+        **kwargs: Additional keyword arguments for `geospace.zonal.extract`.
 
     Returns:
-        pandas.DataFrame: A DataFrame with raster names as the index and polygon
+        pandas.DataFrame or dict: A DataFrame (or dict thereof) with raster names as the index and polygon
                           identifiers as columns.
     """
-    import tqdm
     import pandas as pd
+    from tqdm import tqdm
     from multiprocessing import get_context
 
     if isinstance(rasters, (str, Path)):
         rasters = [str(rasters)]
     else:
         rasters = [str(ras) for ras in rasters]
+
+    if not isinstance(func, (list, tuple)):
+        func = [func]
 
     if sel is None:
         ds = ogr.Open(shp)
@@ -284,6 +300,7 @@ def basin_average(rasters, shp, by='STAID', sel=None, parallel=True, **kwargs):
     if isinstance(sel, str) or not hasattr(sel, '__iter__'):
         sel = [sel]
 
+    # sort rasters to efficiently process rasters with the same resolution
     arr = np.array([gdal.Open(ras).GetGeoTransform() for ras in rasters])
     sort_idxs = np.lexsort((arr[:, 0], arr[:, 3], arr[:, 1], arr[:, 5]))
     sort_rasters = np.array(rasters)[sort_idxs]
@@ -292,52 +309,34 @@ def basin_average(rasters, shp, by='STAID', sel=None, parallel=True, **kwargs):
     )
     is_unique = np.full(len(rasters), False)
     is_unique[idxs[counts == 1]] = True
-
     sort_names, s, t, inverse = rep_name(sort_rasters, sort_idxs=sort_idxs)
 
+    # create worker function
+    worker = partial(
+        reduce_worker, sort_rasters, shp, is_unique, s, t, by, func, **kwargs
+    )
+
+    # if parallel is False or only one CPU is used, use single process
     cpu_used = max(min(N_CPU, len(sel)), 1)
     if cpu_used == 1 or parallel is False:
-        output = list(
-            tqdm.tqdm(
-                (
-                    partial(
-                        basin_average_worker,
-                        sort_rasters,
-                        shp,
-                        is_unique,
-                        s,
-                        t,
-                        by,
-                        **kwargs,
-                    )(f)
-                    for f in sel
-                ),
-                total=len(sel),
-            )
-        )
+        output = list(tqdm(map(worker, sel), total=len(sel)))
     else:
         with get_context('spawn').Pool(cpu_used) as p:
-            output = list(
-                tqdm.tqdm(
-                    p.imap(
-                        partial(
-                            basin_average_worker,
-                            sort_rasters,
-                            shp,
-                            is_unique,
-                            s,
-                            t,
-                            by,
-                            **kwargs,
-                        ),
-                        sel,
-                    ),
-                    total=len(sel),
-                )
-            )
+            output = list(tqdm(p.imap(worker, sel), total=len(sel)))
 
-    # use column to store array for performance
-    # df = pd.DataFrame(output, columns=sort_names, index=sel)
-    df = pd.DataFrame(np.vstack(output).T, columns=sel, index=sort_names)
+    # Convert list of 2D arrays (n_polygons, n_stats, n_rasters) to a single 3D array
+    # and transpose to (n_stats, n_rasters, n_polygons)
+    output_arr = np.array(output).transpose(1, 2, 0)
 
-    return df.iloc[inverse, :]
+    func_names = [getattr(f, '__name__', str(i)) for i, f in enumerate(func)]
+    s = pd.Series(func_names)
+    func_names = (s + s.groupby(s).cumcount().astype(str).replace('0', '')).tolist()
+
+    dfs = {}
+    for stat_idx, func_name in enumerate(func_names):
+        df = pd.DataFrame(output_arr[stat_idx], columns=pd.Index(sel), index=sort_names)
+        dfs[func_name] = df.iloc[inverse, :]
+
+    if len(dfs) == 1:
+        return dfs[func_name]
+    return dfs
