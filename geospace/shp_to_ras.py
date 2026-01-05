@@ -95,12 +95,14 @@ def rasterize(
     # extent warp options
     ds_ex = gdal.Translate('/vsimem/_extent.tif', ds_eg, bandList=[1])
     t = ds_eg.GetGeoTransform()
+    warp_options = kwargs.pop('warpOptions', []) + ['UNIFIED_SRC_NODATA=PARTIAL']
     temp_option = gdal.WarpOptions(
         multithread=True,
         creationOptions=CREATION,
         xRes=t[1] / 10,
         yRes=t[5] / 10,
         outputType=gdal.GDT_Float64,
+        warpOptions=warp_options,
         **kwargs,
     )
 
@@ -113,6 +115,7 @@ def rasterize(
         yRes=t[5],
         resampleAlg=gdal.GRA_Average,
         outputType=gdal.GDT_Float64,
+        warpOptions=warp_options,
         **kwargs,
     )
 

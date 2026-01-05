@@ -30,6 +30,7 @@ def reproject(
     srcSRS = kwargs.pop('srcSRS', 'EPSG:4326')
     dstSRS = kwargs.pop('dstSRS', 'EPSG:4326')
     resampleAlg = kwargs.pop('resampleAlg', gdal.GRA_Average)
+    warp_options = kwargs.pop('warpOptions', []) + ['UNIFIED_SRC_NODATA=PARTIAL']
 
     option = gdal.WarpOptions(
         srcNodata=nodata,
@@ -38,6 +39,7 @@ def reproject(
         dstSRS=dstSRS,
         multithread=True,
         resampleAlg=resampleAlg,
+        warpOptions=warp_options,
         **kwargs,
     )
 

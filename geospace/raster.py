@@ -39,6 +39,7 @@ def convert_uint8(ds, in_nodata=None, out_nodata=255):
         srcNodata=in_nodata,
         dstNodata=out_nodata,
         outputType=gdal.GDT_Byte,
+        warpOptions=['UNIFIED_SRC_NODATA=PARTIAL'],
     )
     out_file = rep_file(os.path.dirname(ras), ras)
     gdal.Warp(out_file, ras, options=option)
@@ -68,8 +69,13 @@ def resample(ds, out_path, **kwargs):
         return out_file
 
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
+    warp_options = kwargs.pop('warpOptions', []) + ['UNIFIED_SRC_NODATA=PARTIAL']
     option = gdal.WarpOptions(
-        multithread=True, creationOptions=CREATION, resampleAlg=resample_alg, **kwargs
+        multithread=True,
+        creationOptions=CREATION,
+        resampleAlg=resample_alg,
+        warpOptions=warp_options,
+        **kwargs,
     )
     gdal.Warp(out_file, ds, options=option)
 
@@ -104,12 +110,14 @@ def mosaic(rasters, out_path, **kwargs):
     srcSRS = read_srs([ds, kwargs.pop('srcSRS', WGS84)])
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
     outputBounds = kwargs.pop('outputBounds', [-180, -90, 180, 90] if all_nc else None)
+    warp_options = kwargs.pop('warpOptions', []) + ['UNIFIED_SRC_NODATA=PARTIAL']
     option = gdal.WarpOptions(
         multithread=True,
         srcSRS=srcSRS,
         creationOptions=CREATION,
         resampleAlg=resample_alg,
         outputBounds=outputBounds,
+        warpOptions=warp_options,
         **kwargs,
     )
 
@@ -153,12 +161,14 @@ def project_raster(ds, out_path, **kwargs):
     outSpatialRef = read_srs(out_srs)
 
     resample_alg = kwargs.pop('resampleAlg', gdal.GRA_Average)
+    warp_options = kwargs.pop('warpOptions', []) + ['UNIFIED_SRC_NODATA=PARTIAL']
     option = gdal.WarpOptions(
         creationOptions=CREATION,
         resampleAlg=resample_alg,
         srcSRS=inSpatialRef,
         dstSRS=outSpatialRef,
         multithread=True,
+        warpOptions=warp_options,
         **kwargs,
     )
     gdal.Warp(out_file, ds, options=option)
@@ -195,8 +205,13 @@ def grib_to_tif(ds, out_path=None, **kwargs):
         return out_file
 
     srcSRS = read_srs([ds, kwargs.pop('srcSRS', WGS84)])
+    warp_options = kwargs.pop('warpOptions', []) + ['UNIFIED_SRC_NODATA=PARTIAL']
     option = gdal.WarpOptions(
-        multithread=True, srcSRS=srcSRS, creationOptions=CREATION, **kwargs
+        multithread=True,
+        srcSRS=srcSRS,
+        creationOptions=CREATION,
+        warpOptions=warp_options,
+        **kwargs,
     )
     gdal.Warp(out_file, ds, options=option)
 

@@ -94,6 +94,7 @@ def _clip(
             yRes=t[5],
             srcNodata=nodata,
             resampleAlg=gdal.GRA_NearestNeighbour,
+            warpOptions=['UNIFIED_SRC_NODATA=PARTIAL'],
         )
         ds_rect = gdal.Warp(out_file, ds, options=option)
         # mask value outside the shapefile
