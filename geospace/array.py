@@ -66,6 +66,26 @@ def reproject(
     return dst_arr
 
 
+def parse_trans(ds):
+    """Normalize coordinates and parse geotransform from xarray objects."""
+    mapping = {'longitude': 'lon', 'latitude': 'lat'}
+    ds = ds.rename({k: v for k, v in mapping.items() if k in ds.coords})
+
+    if 'lon' not in ds.coords or 'lat' not in ds.coords:
+        return ds, None
+
+    if ds.lon.max() > 185:  # Safe for 0-360 (e.g. ERA5-Land 180.05)
+        ds = ds.assign_coords(lon=(ds.lon + 180) % 360 - 180)
+
+    ds = ds.sortby(['lon', 'lat'], ascending=[True, False])
+
+    x, y = ds.lon.values, ds.lat.values
+    dx = float((x.max() - x.min()) / (len(x) - 1))
+    dy = float((y.max() - y.min()) / (len(y) - 1))
+    trans = (float(x.min()) - dx / 2, dx, 0, float(y.max()) + dy / 2, 0, -dy)
+    return ds.transpose(..., 'lat', 'lon'), trans
+
+
 def fill_nodata(ds, valid, nodata=np.nan, nearest=False, fast=True, **kwargs):
     """Fills nodata values in a numpy array or GDAL dataset.
 
