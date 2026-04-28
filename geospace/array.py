@@ -60,7 +60,7 @@ def parse_trans(ds):
     if ds.lon.max() > 185:  # Safe for 0-360 (e.g. ERA5-Land 180.05)
         ds = ds.assign_coords(lon=(ds.lon + 180) % 360 - 180)
 
-    ds = ds.sortby(['lon', 'lat'], ascending=[True, False])
+    ds = ds.sortby('lon', ascending=True).sortby('lat', ascending=False)
 
     x, y = ds.lon.values, ds.lat.values
     dx = float((x.max() - x.min()) / (len(x) - 1))
