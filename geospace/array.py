@@ -5,12 +5,7 @@ from geospace.mask import shape_to_trans
 
 
 def reproject(
-    src_arr,
-    dst_shape,
-    src_transform,
-    dst_transform,
-    nodata=np.nan,
-    **kwargs,
+    src_arr, dst_shape, src_transform, dst_transform, nodata=np.nan, **kwargs
 ):
     """Reprojects a numpy array from a source to a destination projection.
 
@@ -31,18 +26,6 @@ def reproject(
     dstSRS = kwargs.pop('dstSRS', 'EPSG:4326')
     resampleAlg = kwargs.pop('resampleAlg', gdal.GRA_Average)
     warp_options = kwargs.pop('warpOptions', []) + ['UNIFIED_SRC_NODATA=PARTIAL']
-
-    # Wrap-around padding for global datasets to prevent antimeridian artifacts
-    pw = src_transform[1]
-    cols = src_arr.shape[-1]
-    cycle = int(round(360.0 / abs(pw)))
-
-    if cols >= cycle:
-        pad = max(5, int(abs(dst_transform[1] / pw) / 2) + 3)
-        left = src_arr[..., cycle - pad : cycle]
-        right = src_arr[..., cols - cycle : cols - cycle + pad]
-        src_arr = np.concatenate((left, src_arr, right), axis=-1)
-        src_transform = (src_transform[0] - pad * pw, *src_transform[1:])
 
     option = gdal.WarpOptions(
         srcNodata=nodata,
