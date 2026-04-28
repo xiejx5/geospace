@@ -1,5 +1,5 @@
 from ._const import N_CPU, WGS84, CREATION, TYPE_MAP
-from .array import reproject, fill_nodata
+from .array import reproject, parse_trans, fill_nodata
 from .boundary import bound_raster, bound_layers, grid_bound
 from .calculator import map_calc
 from .mask import shape_to_trans, land_mask
