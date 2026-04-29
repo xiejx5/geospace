@@ -1,25 +1,8 @@
+import math
 import numpy as np
 from osgeo import gdal, ogr
-from geospace.utils import zeros_tif
 from geospace.shape import shp_filter
-
-
-def rounder(x, n=2):
-    """Rounds a number to a specified number of significant figures.
-
-    Args:
-        x (float or int): The number to round.
-        n (int, optional): The number of significant figures. Defaults to 2.
-
-    Returns:
-        float: The rounded number.
-    """
-    import math
-
-    try:
-        return round(x, -int(math.floor(math.log10(abs(math.modf(x)[0])))) + n - 1)
-    except ValueError:
-        return x
+from geospace.utils import zeros_tif, rounder
 
 
 def shape_to_trans(y_size, x_size):
@@ -35,14 +18,7 @@ def shape_to_trans(y_size, x_size):
     # sizes=3600x1801 special case for ERA5
     res = rounder(360 / x_size)
     res = 360 / x_size if res < 0.01 else res
-    trans = (
-        -rounder(res * x_size / 2, 3),
-        res,
-        0.0,
-        rounder(res * y_size / 2, 3),
-        0.0,
-        -res,
-    )
+    trans = (-rounder(res * x_size / 2), res, 0.0, rounder(res * y_size / 2), 0.0, -res)
     return trans
 
 
@@ -70,7 +46,6 @@ def land_mask(
         str: The path to the output mask file.
     """
     import re
-    import math
     from cartopy.io.shapereader import natural_earth
     from skimage.morphology import remove_small_holes, remove_small_objects
 

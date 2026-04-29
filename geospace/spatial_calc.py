@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from geospace.utils import ds_name
 
@@ -137,8 +138,6 @@ def distance(a, b):
     Returns:
         float: The distance between the two points in kilometers.
     """
-    import math
-
     ELLIPSOIDS = {
         # model           major (km)   minor (km)     flattening
         'WGS-84': (6378.137, 6356.7523142, 1 / 298.257223563),

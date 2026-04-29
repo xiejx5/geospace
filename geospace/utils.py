@@ -1,9 +1,26 @@
 import os
+import math
 import numpy as np
 from osgeo import gdal
 from collections.abc import Iterable
 from geospace._const import WGS84, CREATION
 from geospace.projection import read_srs, coord_trans
+
+
+def rounder(x, n=5):
+    """Rounds a number to a specified number of significant figures.
+
+    Args:
+        x (float or int): The number to round.
+        n (int, optional): The number of significant figures. Defaults to 5.
+
+    Returns:
+        float: The rounded number.
+    """
+    try:
+        return round(x, -int(math.floor(math.log10(abs(math.modf(x)[0])))) + n - 1)
+    except ValueError:
+        return x
 
 
 def block_write(datasets, map_fun, *args, **kwargs):

@@ -1,6 +1,7 @@
 import numpy as np
 from osgeo import gdal
 from osgeo import gdal_array
+from geospace.utils import rounder
 from geospace.mask import shape_to_trans
 
 
@@ -66,6 +67,10 @@ def parse_trans(ds):
     dx = float((x.max() - x.min()) / (len(x) - 1))
     dy = float((y.max() - y.min()) / (len(y) - 1))
     trans = (float(x.min()) - dx / 2, dx, 0, float(y.max()) + dy / 2, 0, -dy)
+
+    if rounder(dx) >= 0.01:
+        trans = tuple(rounder(v) for v in trans)
+
     return ds.transpose(..., 'lat', 'lon'), trans
 
 
