@@ -8,17 +8,28 @@ from geospace.projection import read_srs, coord_trans
 
 
 def rounder(x, n=5):
-    """Rounds a number to a specified number of significant figures.
+    """Rounds a number to clean significant figures when safe.
+
+    Uses a self-consistency check: rounds to both n and (n-1) significant
+    figures. If results agree, the value is a clean decimal with
+    floating-point noise and the rounded result is returned. If they
+    differ, the value has genuine precision (e.g. repeating decimals
+    like 1/120 = 0.008333...) and is returned unchanged.
 
     Args:
         x (float or int): The number to round.
         n (int, optional): The number of significant figures. Defaults to 5.
 
     Returns:
-        float: The rounded number.
+        float: The rounded number, or the original if rounding would
+               degrade accuracy.
     """
+    x = float(x)
     try:
-        return round(x, -int(math.floor(math.log10(abs(math.modf(x)[0])))) + n - 1)
+        d = -int(math.floor(math.log10(abs(math.modf(x)[0]))))
+        coarse = round(x, d + n - 2)
+        fine = round(x, d + n - 1)
+        return coarse if fine == coarse else x
     except ValueError:
         return x
 

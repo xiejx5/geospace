@@ -17,7 +17,6 @@ def shape_to_trans(y_size, x_size):
     """
     # sizes=3600x1801 special case for ERA5
     res = rounder(360 / x_size)
-    res = 360 / x_size if res < 0.01 else res
     trans = (-rounder(res * x_size / 2), res, 0.0, rounder(res * y_size / 2), 0.0, -res)
     return trans
 

@@ -64,12 +64,9 @@ def parse_trans(ds):
     ds = ds.sortby('lon', ascending=True).sortby('lat', ascending=False)
 
     x, y = ds.lon.values, ds.lat.values
-    dx = float((x.max() - x.min()) / (len(x) - 1))
-    dy = float((y.max() - y.min()) / (len(y) - 1))
-    trans = (float(x.min()) - dx / 2, dx, 0, float(y.max()) + dy / 2, 0, -dy)
-
-    if rounder(dx) >= 0.01:
-        trans = tuple(rounder(v) for v in trans)
+    dx = rounder((x[-1] - x[0]) / (len(x) - 1))
+    dy = rounder((y[0] - y[-1]) / (len(y) - 1))
+    trans = (rounder(x[0] - dx / 2), dx, 0, rounder(y[0] + dy / 2), 0, -dy)
 
     return ds.transpose(..., 'lat', 'lon'), trans
 
