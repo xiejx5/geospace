@@ -5,7 +5,7 @@ description = "Geospatial processing library based on GDAL and Google Earth Engi
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "Cody James", email = "xiejx5@gmail.com" }]
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 dependencies = [
     "numpy",
     "pandas",
