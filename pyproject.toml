@@ -1,6 +1,6 @@
 [project]
 name = "geospace"
-version = "0.5.9"
+version = "0.6.0"
 description = "Geospatial processing library based on GDAL and Google Earth Engine"
 readme = "README.md"
 license = "MIT"
@@ -8,10 +8,10 @@ authors = [{ name = "Cody James", email = "xiejx5@gmail.com" }]
 requires-python = ">=3.8"
 dependencies = [
     "numpy",
-    "gdal",
     "pandas",
     "openpyxl",
     "tqdm",
+    "psutil",
 ]
 
 [project.optional-dependencies]
