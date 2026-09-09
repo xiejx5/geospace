@@ -48,6 +48,7 @@ def main():
         geospace = {
             info.filename: (info, wheel.read(info))
             for info in wheel.infolist()
+            if not info.is_dir()
         }
 
     infos = {
@@ -85,6 +86,9 @@ def main():
             ]
 
             for item in wheel.infolist():
+                if item.is_dir():
+                    continue
+
                 name = item.filename
 
                 if name.startswith(gdal_info + "/"):
