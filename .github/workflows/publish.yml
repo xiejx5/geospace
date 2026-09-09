@@ -1,0 +1,39 @@
+name: Publish
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - pyproject.toml
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - uses: astral-sh/setup-uv@v6
+
+      - id: version
+        name: Check version
+        run: |
+          CURRENT=$(grep -Po '(?<=^version = ")[^"]+' pyproject.toml)
+          PREVIOUS=$(git show HEAD^:pyproject.toml 2>/dev/null \
+            | grep -Po '(?<=^version = ")[^"]+' || true)
+
+          echo "$PREVIOUS -> $CURRENT"
+          echo "changed=$([[ "$CURRENT" != "$PREVIOUS" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        if: steps.version.outputs.changed == 'true'
+        run: uv build
+
+      - name: Publish
+        if: steps.version.outputs.changed == 'true'
+        run: uv publish
