@@ -68,6 +68,16 @@ def parse_trans(ds):
     dy = rounder((y[0] - y[-1]) / (len(y) - 1))
     trans = (rounder(x[0] - dx / 2), dx, 0, rounder(y[0] + dy / 2), 0, -dy)
 
+    # Explicitly close global grids whose transform crosses the antimeridian.
+    if np.isclose(dx * len(x), 360):
+        if trans[0] < -180:
+            ds = ds.pad(lon=(0, 1), mode='wrap')
+            ds = ds.assign_coords(lon=np.r_[x, x[0] + 360])
+        elif trans[0] > -180:
+            ds = ds.pad(lon=(1, 0), mode='wrap')
+            ds = ds.assign_coords(lon=np.r_[x[-1] - 360, x])
+            trans = (rounder(trans[0] - dx), *trans[1:])
+
     return ds.transpose(..., 'lat', 'lon'), trans
 
 
