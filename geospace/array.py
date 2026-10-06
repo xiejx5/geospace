@@ -60,6 +60,7 @@ def parse_trans(ds):
 
     if ds.lon.max() > 185:  # Safe for 0-360 (e.g. ERA5-Land 180.05)
         ds = ds.assign_coords(lon=(ds.lon + 180) % 360 - 180)
+        ds = ds.drop_duplicates('lon')
 
     ds = ds.sortby('lon', ascending=True).sortby('lat', ascending=False)
 
@@ -69,7 +70,7 @@ def parse_trans(ds):
     trans = (rounder(x[0] - dx / 2), dx, 0, rounder(y[0] + dy / 2), 0, -dy)
 
     # Explicitly close global grids whose transform crosses the antimeridian.
-    if np.isclose(dx * len(x), 360):
+    if rounder(dx * len(x)) == 360:
         if trans[0] < -180:
             ds = ds.pad(lon=(0, 1), mode='wrap')
             ds = ds.assign_coords(lon=np.r_[x, x[0] + 360])

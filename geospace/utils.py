@@ -10,11 +10,9 @@ from geospace.projection import read_srs, coord_trans
 def rounder(x, n=5):
     """Rounds a number to clean significant figures when safe.
 
-    Uses a self-consistency check: rounds to both n and (n-1) significant
-    figures. If results agree, the value is a clean decimal with
-    floating-point noise and the rounded result is returned. If they
-    differ, the value has genuine precision (e.g. repeating decimals
-    like 1/120 = 0.008333...) and is returned unchanged.
+    Snaps tiny noise around integers, then uses a self-consistency check
+    at adjacent precisions. Genuine precision (e.g. repeating decimals
+    like 1/120 = 0.008333...) is left unchanged.
 
     Args:
         x (float or int): The number to round.
@@ -25,6 +23,10 @@ def rounder(x, n=5):
                degrade accuracy.
     """
     x = float(x)
+    rounded = round(x, n)
+    if rounded.is_integer():
+        return rounded
+
     try:
         d = -int(math.floor(math.log10(abs(math.modf(x)[0]))))
         coarse = round(x, d + n - 2)
